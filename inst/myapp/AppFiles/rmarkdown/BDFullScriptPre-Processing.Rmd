@@ -1,0 +1,1263 @@
+---
+title: "BDFullScriptPre-Processing"
+author: "Britt Kolen"
+date: "2023-06-07"
+output: html_document
+
+---
+
+#-Importing tables-
+#-Laser delay-
+#Function Used to get Laser Delay Table from .log file 
+```{r Function used to extract the Laser Delay Table from selected .log files, warning=TRUE}
+#Start of function
+Delayfunction<- function(inputdata1){
+# Read the text file into R as a character vector
+text_linesDelay <- readLines(inputdata1)
+# -Clean up data before selecting tabels, this includes baseline set-up and errors- 
+# Define and Re-define values containing start and stop text used to select and remove data (setting to NULL so the start and stop reset for each file)
+i<-NULL
+Remove_Base_Tracking_1<-NULL
+Remove_Base_Tracking_2<-NULL
+start_before_abort<-NULL
+Remove_Session_Abort_1 <- NULL
+Remove_Session_Abort_2<-NULL
+Remove_Hardware_Error_1 <- NULL
+Remove_Hardware_Error_2 <- NULL
+start_before_Hardware <- NULL
+
+#Filter HARDWARE ERROR data
+#Define start and stop to be filtered out
+Remove_Hardware_Error_1 <- grep("<<<< Workflow Run started >>>>", text_linesDelay)
+Remove_Hardware_Error_2 <- grep("##### HARDWARE ERROR, SETUP FAILED! ########", text_linesDelay)
+
+# Remove HARDWARE section
+if(length(Remove_Hardware_Error_2) > 0){
+  for(i in (length(Remove_Hardware_Error_2):1)){
+    before_Hardware<-Remove_Hardware_Error_1[which((Remove_Hardware_Error_1-Remove_Hardware_Error_2[i])<0)]
+    start_before_Hardware<-max(before_Hardware)
+    text_linesDelay <- text_linesDelay[-(start_before_Hardware:Remove_Hardware_Error_2[i])]
+  }}
+
+#Filter abort data
+#Define start and stop to be filtered out
+Remove_Session_Abort_1 <- grep("<<<< Workflow Run started >>>>", text_linesDelay)
+Remove_Session_Abort_2 <- grep("<<<< Setup aborted >>>>", text_linesDelay)
+
+# Remove abort section
+if(length(Remove_Session_Abort_2) > 0){
+  for(i in (length(Remove_Session_Abort_2):1)){
+    before_abort<-Remove_Session_Abort_1[which((Remove_Session_Abort_1-Remove_Session_Abort_2[i])<0)]
+    start_before_abort<-max(before_abort)
+    text_linesDelay <- text_linesDelay[-(start_before_abort:Remove_Session_Abort_2[i])]
+  }}
+
+#Filter out set-up data
+#Define start and stop to be filtered out
+Remove_Base_Tracking_1 <- grep("Cytometer Baseline Workflow started|TRACKING SETUP WITH OLD BEADS LOT STARTED!|TARGET VALUE SETUP WITH NEW BEADS LOT STARTED!", text_linesDelay)
+Remove_Base_Tracking_2 <- grep("BASELINE TARGET VALUE SETUP SUCCEEDED!|BASELINE PMT SETUP FAILED|BASELINE TARGET VALUE SETUP FAILED!|TRACKING SETUP WITH OLD BEADS LOT SUCCEEDED!|TARGET VALUE SETUP WITH NEW BEADS LOT SUCCEEDED!", text_linesDelay)
+
+# Remove baseline section
+if(length(Remove_Base_Tracking_1)>0){
+  for(i in (length(Remove_Base_Tracking_1):1)){
+    text_linesDelay <- text_linesDelay[-(Remove_Base_Tracking_1[i]:Remove_Base_Tracking_2[i])]
+
+  }
+}
+
+# - Extract Laser Delay -
+#Set the start and end patterns for the text to extract
+start_patternDelay <- "Set laser settings"
+end_patternDelay <- "Finish laser delay setup"
+end_patternDelayFAIL<-"Laser delay setup failed.|########### LaserDelaySetup Fail"
+start_new_tracking_patternDelay <- "TRACKING SETUP STARTED!" 
+# initialize a variable to store the extracted text
+extracted_textDelay <- ""
+
+#Define What to look for.id3
+for (l in 1:length(text_linesDelay)) {
+  if (grepl("CYTOMETER_NAME", text_linesDelay[l])) {
+    Cytometer_name <- text_linesDelay[l]
+    Cytometer_serial<-text_linesDelay[l+1]
+    break
+  }}
+#Define .txt .id2 for future pass/fail
+Test.id2<-0
+
+#Start loop, analyze  every line in .log file 
+for (l in 1:length(text_linesDelay)) {
+
+  # #Checking if line is the same as the define start ID
+  if (grepl(start_patternDelay, text_linesDelay[l])) {
+
+    #Creating variable for storing revelant text
+    section_textDelay <- ""
+
+    # loop over each line until the end pattern is reached
+    for (k in (l+2):(length(text_linesDelay))) {
+
+      # check if the current line matches the end pattern
+      if (grepl(end_patternDelay, text_linesDelay[k])) {
+        # add the section text to the extracted text variable
+        extracted_textDelay <- paste(extracted_textDelay, section_textDelay)
+        # Go to outer loop
+        break
+      } else {
+        if (grepl(end_patternDelayFAIL, text_linesDelay[k])) {
+          break
+        } else {
+        # Write the extracted line to the generated variable
+        section_textDelay <- paste(section_textDelay, text_linesDelay[k], sep = "\n")
+        section_textDelay <- paste(section_textDelay, Test.id2, sep = "\t")
+        }
+      }  
+    }
+   } else {
+      if (grepl(start_new_tracking_patternDelay, text_linesDelay[l])) {
+        Test.id2 <- Test.id2 + 1
+      }
+    }
+  }
+
+# -Creating the dataframes- 
+# print the extracted text, remove spacing
+extracted_textDelay<-str_replace(extracted_textDelay, "\n\n","")
+extracted_textDelay<-str_replace(extracted_textDelay, "\n","")
+
+#Extract and edit table 
+#Read extracted text into R using fread 
+TableDelay <- fread(extracted_textDelay, sep="\t", header = FALSE, fill=TRUE)
+
+#Remove PLA, Events, Bluidchart, FluidicsSettings and Clusters for Aria 1 and 3
+TableDelay <- TableDelay[!grep("PLA", TableDelay$V2),]
+TableDelay <- TableDelay[!grep("Events", TableDelay$V2),]
+TableDelay <- TableDelay[!grep("BuildChart", TableDelay$V2),]
+TableDelay <- TableDelay[!grep("HasFluidicsSettings", TableDelay$V2),]
+TableDelay <- TableDelay[!grep("Cluster", TableDelay$V2),]
+TableDelay <- TableDelay[!grep("Window Extension", TableDelay$V2),]
+
+#Edit columns: Date and time
+#Convert date and Time into correct format using parse_date_time
+TableDelay$V1<-parse_date_time(TableDelay$V1,orders=c("%I:%M:%S %p %m/%d/%Y","%H:%M:%S %d-%m-%Y"))
+Table_splitDelay <- TableDelay
+#Seperating Date/Time column
+Table_splitDelay <- Table_splitDelay %>% separate(V1, c("Date", "Time"), " ")
+Table_splitDelay$Time <- gsub(' ', '', Table_splitDelay$Time)
+Table_splitDelay$Date <- gsub(' ', '', Table_splitDelay$Date)
+
+#Edit columns: V2 clean up
+Table_splitDelay <- Table_splitDelay[- grep("End.*", Table_splitDelay$V2),]
+Table_splitDelay <- Table_splitDelay[- grep("Start.*", Table_splitDelay$V2),]
+
+#Edit columns: Split value and variable based on "="
+Table_splitDelay <- Table_splitDelay %>% separate(V2, c("variable", "value"), " = ")
+
+#Edit columns: Split Laser and variable based on " D"
+Table_splitDelay <- Table_splitDelay %>% separate(variable, into = c("Laser", "variable"), sep = " D")
+Table_splitDelay$variable <- gsub('elay', 'Laser_Delay', Table_splitDelay$variable)
+
+#Table corrections: Replacing spaces in Laser column
+Table_splitDelay$Laser <- gsub(' ', '_', Table_splitDelay$Laser)
+
+# -Data type corrections-
+#Cleaning up date column, converting data to date type data using as.date
+Table_splitDelay$Date <- gsub(' ', '', Table_splitDelay$Date)
+Table_splitDelay$Date <- as.character(Table_splitDelay$Date)
+Table_splitDelay$Date <- as.Date(Table_splitDelay$Date)
+#Converting data in Time column into Time type data using as_hms
+Table_splitDelay$Time <- as_hms(Table_splitDelay$Time)
+# Replacing "," with "." as a result of european languague settings
+Table_splitDelay$value <- gsub(',', '.', Table_splitDelay$value)
+Table_splitDelay$value <- as.numeric(Table_splitDelay$value)
+
+#Adding missing Detector column for later merging
+Table_splitDelay$Detector <- c("")
+
+#Rename V3 to Test.id2
+Table_splitDelay<- rename(Table_splitDelay, Test.id2 = 6)
+
+#Final list of dataframes Laser Delay
+Laser_Delay_All <- Table_splitDelay
+}
+#####End lapply
+
+#Lapply function defined
+Delaylist<-lapply(file_path_BD,Delayfunction)
+
+
+#Generate dataframe from all items in list keeping .id column (number in list)
+DataFrameDelay <- rbindlist(Delaylist, idcol=TRUE)
+#Create column .id3 by combining .id and .id2
+DataFrameDelay$id3 <- paste(DataFrameDelay$.id, "-", DataFrameDelay$Test.id2)
+```
+
+
+
+
+#-Laser delay-
+#Function Used to get Area Scaling Factor Table from .log file 
+```{r Function used to extract the Area Scaling Factor Table from selected .log files, warning=TRUE}
+#-Area scaling factor-
+#### Begin Lapply
+#Start of function
+ASFfunction<-function(inputdata2){
+# read the text file into R as a character vector
+text_lines <- read_lines(inputdata2)
+# -Clean up data before selecting tabels, this includes baseline set-up and errors- 
+# Define and Re-define values containing start and stop text used to select and remove data (setting to NULL so the start and stop reset for each file)
+i<-NULL
+j <- NULL
+Remove_Base_Tracking_1<-NULL
+Remove_Base_Tracking_2<-NULL
+start_before_abort<-NULL
+Remove_Session_Abort_2<-NULL
+Remove_Hardware_Error_1 <- NULL
+Remove_Hardware_Error_2 <- NULL
+start_before_Hardware <- NULL
+#-Area Scaling Factor-
+# set the start and end patterns for the text to extract
+start_pattern <- "Start area scaling factor setup"
+end_pattern <- "Finish area scaling factor setup"
+start_new_tracking_patternASF <- "TRACKING SETUP STARTED!" 
+
+#Filter HARDWARE ERROR data
+#Define start and stop to be filtered out
+Remove_Hardware_Error_1 <- grep("<<<< Workflow Run started >>>>", text_lines)
+Remove_Hardware_Error_2 <- grep("##### HARDWARE ERROR, SETUP FAILED! ########", text_lines)
+
+# Remove HARDWARE section
+if(length(Remove_Hardware_Error_2) > 0){
+  for(i in (length(Remove_Hardware_Error_2):1)){
+    before_Hardware<-Remove_Hardware_Error_1[which((Remove_Hardware_Error_1-Remove_Hardware_Error_2[i])<0)]
+    start_before_Hardware<-max(before_Hardware)
+    text_lines <- text_lines[-(start_before_Hardware:Remove_Hardware_Error_2[i])]
+  }}
+
+#-Filter abort data-
+#Define start and stop to be filtered out
+Remove_Session_Abort_1 <- grep("<<<< Workflow Run started >>>>", text_lines)
+Remove_Session_Abort_2 <- grep("<<<< Setup aborted >>>>", text_lines)
+
+# Remove abort section
+if(length(Remove_Session_Abort_2) > 0){
+  for(i in (length(Remove_Session_Abort_2):1)){
+    before_abort<-Remove_Session_Abort_1[which((Remove_Session_Abort_1-Remove_Session_Abort_2[i])<0)]
+    start_before_abort<-max(before_abort)
+    text_lines <- text_lines[-(start_before_abort:Remove_Session_Abort_2[i])]
+  }}
+
+#-Filter out set up data-
+#Define start and stop to be filtered out
+Remove_Base_Tracking_1 <- grep("Cytometer Baseline Workflow started|TRACKING SETUP WITH OLD BEADS LOT STARTED!|TARGET VALUE SETUP WITH NEW BEADS LOT STARTED!", text_lines)
+Remove_Base_Tracking_2 <- grep("BASELINE TARGET VALUE SETUP SUCCEEDED!|BASELINE PMT SETUP FAILED|BASELINE TARGET VALUE SETUP FAILED!|TRACKING SETUP WITH OLD BEADS LOT SUCCEEDED!|TARGET VALUE SETUP WITH NEW BEADS LOT SUCCEEDED!", text_lines)
+
+# Remove baseline section
+if(length(Remove_Base_Tracking_1) > 0){
+  for(j in (length(Remove_Base_Tracking_1):1)){
+    text_lines <- text_lines[-(Remove_Base_Tracking_1[j]:Remove_Base_Tracking_2[j])]
+
+}}
+
+# - Extract Area Scaling factor -
+# set the start and end patterns for the text to extract
+start_pattern <- "Start area scaling factor setup"
+end_pattern <- "Finish area scaling factor setup"
+start_new_tracking_patternASF <- "TRACKING SETUP STARTED!" 
+
+# initialize a variable to store the extracted text
+extracted_text <- ""
+
+#Define What to look for .id3
+for (i in 1:length(text_lines)) {
+  if (grepl("CYTOMETER_NAME", text_lines[i])) {
+    Cytometer_name <- text_lines[i]
+    Cytometer_serial<-text_lines[i+1]
+    break
+  }}
+
+
+#Define .txt .id2 for future pass/fail
+Test.id2<-0
+
+#Start loop, analyze every for every line in .log file 
+for (i in 1:length(text_lines)) {
+
+  # #Checking if line is the same as the define start ID
+  if (grepl(start_pattern, text_lines[i])) {
+
+    # #Creating variable for storing revelant text
+    section_text <- ""
+
+    # loop over each line until the end pattern is reached
+    for (j in (i+3):(length(text_lines))) {
+
+      # check if the current line matches the end pattern
+      if (grepl(end_pattern, text_lines[j])) {
+        # add the section text to the extracted text variable
+        extracted_text <- paste(extracted_text, section_text)
+        # Go to outer loop
+        break
+       } else {
+        # Write the extracted line to the generated variable
+        section_text <- paste(section_text, text_lines[j], sep = "\n")
+        section_text <- paste(section_text, Test.id2, sep = "\t")
+       }
+    }
+  } else {
+    if (grepl(start_new_tracking_patternASF, text_lines[i])) {
+      Test.id2 <- Test.id2 + 1
+    }
+  }
+}
+
+# -Creating the dataframes- 
+# print the extracted text, remove spacing
+extracted_text<-str_replace(extracted_text, "\n\n","")
+extracted_text<-str_replace(extracted_text, "\n","")
+
+#Read extracted text into R using fread 
+Table <- fread(extracted_text, sep="\t", header = FALSE)
+
+#Remove PLA, Events, Bluidchart, FluidicsSettings and Clusters for Aria 1 and 3
+Table <- Table[!grep("PLA", Table$V2),]
+Table <- Table[!grep("Events", Table$V2),]
+Table <- Table[!grep("BuildChart", Table$V2),]
+Table <- Table[!grep("HasFluidicsSettings", Table$V2),]
+Table_split <- Table[!grep("Cluster", Table$V2),]
+
+
+#Edit columns: Date and time
+#Convert date and Time into correct format using parse_date_time
+Table$V1<-parse_date_time(Table$V1,orders=c("%I:%M:%S %p %m/%d/%Y","%H:%M:%S %d-%m-%Y"))
+Table_split <- Table
+#Seperating Date/Time column based on " "
+Table_split <- Table_split %>% separate(V1, c("Date", "Time"), " ")
+Table_split$Time <- gsub(' ', '', Table_split$Time)
+Table_split$Date <- gsub(' ', '', Table_split$Date)
+
+#Edit columns: V2 clean up
+Table_split <- Table_split %>% separate(V2, c("variable", "value"), " = ")
+Table_split$Time <- gsub(' ', '', Table_split$Time)
+
+#Edit columns: Split value and variable based on "="
+Table_split$variable <- gsub('Laser', '', Table_split$variable)
+Table_split <- Table_split %>% separate(variable, into = c("Laser", "variable"), sep = "(?=A)")
+Table_split$Laser <- gsub(' ', '', Table_split$Laser)
+
+#FSC is a parameter and not a Laser, therefore, when FSC can be found in the Laser column, Area Scaling factor will be renamed FSC Area scaling factor if not, it will be named Area scaling factor
+Table_split$variable <- case_when(Table_split$Laser == "FSC" ~ gsub('Area Scaling Factor', 'FSC_Area_Scaling_Factor', Table_split$variable), Table_split$Laser != "FSC" ~ gsub('Area Scaling Factor', 'Area_Scaling_Factor', Table_split$variable))
+#Removing FSC from Laser column 
+Table_split$Laser <- gsub('FSC', '', Table_split$Laser)
+#Removing any potential spaces
+Table_split$Laser <- gsub(' ', '_', Table_split$Laser)
+
+# -Data type corrections-
+#Cleaning up date column, converting data to date type data using as.date
+Table_split$Date <- gsub(' ', '', Table_split$Date)
+Table_split$Date <- as.character(Table_split$Date)
+Table_split$Date <- as.Date(Table_split$Date)
+#Converting data in Time column into Time type data using as_hms
+Table_split$Time <- as_hms(Table_split$Time)
+# Replacing "," with "." as a result of european languague settings
+Table_split$value <- gsub(',', '.', Table_split$value)
+Table_split$value <- as.numeric(Table_split$value)
+
+#Adding missing Detector column for later merging
+Table_split$Detector <- c("")
+
+#Rename V3 to Test.id2
+Table_split<- rename(Table_split, Test.id2 = 6)
+
+#Final table
+Area_Scaling_All <- Table_split
+
+}
+#####End lapply
+
+ASFlist<-lapply(file_path_BD,ASFfunction)
+
+#Generate dataframe from all items in list keeping .id column (number in list)
+DataFrameASF <- rbindlist(ASFlist, idcol=TRUE)
+
+#Create column .id3 by combining .id and .id2
+DataFrameASF$id3 <- paste(DataFrameASF$.id, "-", DataFrameASF$Test.id2)
+```
+
+
+#-QBValues-
+#Function Used to get QBValues from .log file 
+```{r Function used to extract QBValues Table from selected .log files, warning=TRUE}
+#### Begin Lapply
+#Start of function
+QBValuesfunction<- function(inputdata3){
+# read the text file into R as a character vector
+text_linesQBValues <- readLines(inputdata3)
+
+# -Clean up data before selecting tabels, this includes baseline set-up and errors- 
+# Define and Re-define values containing start and stop text used to select and remove data (setting to NULL so the start and stop reset for each file)
+  i<-NULL
+  Remove_Base_Tracking_1<-NULL
+  Remove_Base_Tracking_2<-NULL
+  start_before_abort<-NULL
+  Remove_Session_Abort_1 <- NULL
+  Remove_Session_Abort_2<-NULL
+  Remove_Hardware_Error_1 <- NULL
+  Remove_Hardware_Error_2 <- NULL
+  start_before_Hardware <- NULL
+
+#-Filter HARDWARE ERROR data-
+#Define start and stop to be filtered out
+Remove_Hardware_Error_1 <- grep("<<<< Workflow Run started >>>>", text_linesQBValues)
+Remove_Hardware_Error_2 <- grep("##### HARDWARE ERROR, SETUP FAILED! ########", text_linesQBValues)
+
+# Remove HARDWARE section
+if(length(Remove_Hardware_Error_2) > 0){
+  for(i in (length(Remove_Hardware_Error_2):1)){
+    before_Hardware<-Remove_Hardware_Error_1[which((Remove_Hardware_Error_1-Remove_Hardware_Error_2[i])<0)]
+    start_before_Hardware<-max(before_Hardware)
+    text_linesQBValues <- text_linesQBValues[-(start_before_Hardware:Remove_Hardware_Error_2[i])]
+  }}
+
+#-Filter abort data-
+#Define start and stop to be filtered out
+Remove_Session_Abort_1 <- grep("<<<< Workflow Run started >>>>", text_linesQBValues)
+Remove_Session_Abort_2 <- grep("<<<< Setup aborted >>>>", text_linesQBValues)
+
+# Remove abort section
+if(length(Remove_Session_Abort_2) > 0){
+  for(i in (length(Remove_Session_Abort_2):1)){
+    before_abort<-Remove_Session_Abort_1[which((Remove_Session_Abort_1-Remove_Session_Abort_2[i])<0)]
+    start_before_abort<-max(before_abort)
+    text_linesQBValues <- text_linesQBValues[-(start_before_abort:Remove_Session_Abort_2[i])]
+  }}
+
+#-Filter out set up data-
+#Define start and stop to be filtered out
+Remove_Base_Tracking_1 <- grep("Cytometer Baseline Workflow started|TRACKING SETUP WITH OLD BEADS LOT STARTED!|TARGET VALUE SETUP WITH NEW BEADS LOT STARTED!", text_linesQBValues)
+Remove_Base_Tracking_2 <- grep("BASELINE TARGET VALUE SETUP SUCCEEDED!|BASELINE PMT SETUP FAILED|BASELINE TARGET VALUE SETUP FAILED!|TRACKING SETUP WITH OLD BEADS LOT SUCCEEDED!|TARGET VALUE SETUP WITH NEW BEADS LOT SUCCEEDED!", text_linesQBValues)
+
+
+# Remove baseline section
+if(length(Remove_Base_Tracking_1)>0){
+  for(i in (length(Remove_Base_Tracking_1):1)){
+    text_linesQBValues <- text_linesQBValues[-(Remove_Base_Tracking_1[i]:Remove_Base_Tracking_2[i])]
+  }
+}
+
+# - Extract QBValues factor -
+# set the start and end patterns for the text to extract
+start_patternQBValues <- "### Q and B Values ###"
+end_patternQBValues <- "### Beads Statistics ###"
+start_new_tracking_patternT3 <- "TRACKING SETUP STARTED!" 
+
+
+# initialize a variable to store the extracted text
+extracted_textQBValues <- ""
+
+#Define What to look for for .id3
+for (t in 1:length(text_linesQBValues)) {
+  if (grepl("CYTOMETER_NAME", text_linesQBValues[t])) {
+    Cytometer_nameQBValues <- text_linesQBValues[t]
+    Cytometer_serialQBValues<-text_linesQBValues[t+1]
+    break
+  }}
+
+#Define .txt .id2 for future pass/fail
+Test.id2<-0
+
+#Start loop, analyze every for every line in .log file 
+for (t in 1:length(text_linesQBValues)) {
+
+  # #Checking if line is the same as the define start ID
+  if (grepl(start_patternQBValues, text_linesQBValues[t])) {
+
+    # #Creating variable for storing revelant text
+    section_textQBValues <- ""
+
+    # loop over each line until the end pattern is reached
+    for (c in (t+2):(length(text_linesQBValues))) {
+
+      # check if the current line matches the end pattern
+      if (grepl(end_patternQBValues, text_linesQBValues[c])) {
+        # add the section text to the extracted text variable
+        extracted_textQBValues <- paste(extracted_textQBValues, section_textQBValues)
+        # Go to outer loop
+        break
+
+      } else {
+        # Write the extracted line to the generated variable
+        section_textQBValues <- paste(section_textQBValues, text_linesQBValues[c], sep = "\n")
+        section_textQBValues <- paste(section_textQBValues, Test.id2, sep = "\t")
+      }
+    }
+  } else {
+    if (grepl(start_new_tracking_patternT3, text_linesQBValues[t])) {
+      Test.id2 <- Test.id2 + 1
+    }
+  }
+}
+
+# -Creating the dataframes- 
+# print the extracted text, remove spacing
+extracted_textQBValues<-str_replace(extracted_textQBValues, "\n\n","")
+extracted_textQBValues<-str_replace(extracted_textQBValues, "\n","")
+
+#Read extracted text into R using fread 
+TableQBValues <- fread(extracted_textQBValues, sep="\t", header = FALSE)
+
+#Remove PLA, Events, Bluidchart, FluidicsSettings and Clusters for Aria 1 and 3
+TableQBValues <- TableQBValues[!grep("PLA", TableQBValues$V2),]
+TableQBValues <- TableQBValues[!grep("Events", TableQBValues$V2),]
+TableQBValues <- TableQBValues[!grep("BuildChart", TableQBValues$V2),]
+TableQBValues <- TableQBValues[!grep("HasFluidicsSettings", TableQBValues$V2),]
+TableQBValues <- TableQBValues[!grep("Cluster", TableQBValues$V2),]
+
+#Edit columns: Date and time
+#Convert date and Time into correct format using parse_date_time
+TableQBValues$V1<-parse_date_time(TableQBValues$V1,orders=c("%I:%M:%S %p %m/%d/%Y","%H:%M:%S %d-%m-%Y"))
+Table_splitQBValues<- TableQBValues
+#Seperating Date/Time column based on " "
+Table_splitQBValues <- Table_splitQBValues %>% separate(V1, c("Date", "Time"), " ")
+Table_splitQBValues$Time <- gsub(' ', '', Table_splitQBValues$Time)
+Table_splitQBValues$Date <- gsub(' ', '', Table_splitQBValues$Date)
+
+#Splitting Q and Detector columns using seperate on "?=Q", meaning splitting on Q, while keeping Q
+Table_splitQBValues <- Table_splitQBValues %>% separate(V2, c("Detector", "Q"), "(?= Q)")
+
+#Splitting Table to get all variables using seperate, using specific identifiers for each variable with "?=" referring to keeping the text
+Table_splitQBValues <- Table_splitQBValues %>% separate(Q, c("Q", "B"), "(?= B)")
+Table_splitQBValues <- Table_splitQBValues %>% separate(B, c("B", "Delta_rCV_Square_Mid"), "(?= Delta)")
+Table_splitQBValues <- Table_splitQBValues %>% separate(Delta_rCV_Square_Mid, c("Delta_rCV_Square_Mid", "Ref_MFI_Bright"), "(?= Ref)")
+Table_splitQBValues <- Table_splitQBValues %>% separate(Ref_MFI_Bright, c("Ref_MFI_Bright", "Normalization_Factor"),"(?= Normalization)")
+
+#Clean up of all columns
+#Removing the ":" in the detector column
+Table_splitQBValues$Detector <- gsub(':', '', Table_splitQBValues$Detector)
+#Removing the 'Q =' from the Q column
+Table_splitQBValues$Q <- gsub(' Q = ', '', Table_splitQBValues$Q)
+#Removing the 'B =' from the B column
+Table_splitQBValues$B <- gsub(' B = ', '', Table_splitQBValues$B)
+#Removing brackets with gsub "\\(|\\)" referring to brackets, gsub does not work well with brackets, which is the reason why using regular expressions was necessary. Removing brackets from the Delta_rCV_Square_Mid column
+Table_splitQBValues$Delta_rCV_Square_Mid <- gsub("\\(|\\)",'', Table_splitQBValues$Delta_rCV_Square_Mid)
+#Removing 'Delta rCV Square Mid =' from the Delta_rCV_Square_Mid column
+Table_splitQBValues$Delta_rCV_Square_Mid <- gsub(' Delta rCV Square Mid = ','', Table_splitQBValues$Delta_rCV_Square_Mid)
+#Removing brackets with gsub "\\(|\\)" referring to brackets, gsub does not work well with brackets, which is the reason why using regular expressions was necessary. Removing brackets from the Ref_MFI_Bright  column
+Table_splitQBValues$Ref_MFI_Bright <- gsub("\\(|\\)", '', Table_splitQBValues$Ref_MFI_Bright)
+#Removing 'Ref MFI Bright =' from the Ref_MFI_Bright column
+Table_splitQBValues$Ref_MFI_Bright <- gsub(' Ref MFI Bright = ', '', Table_splitQBValues$Ref_MFI_Bright)
+#Removing 'Ref MFI Bright =' from the Ref_MFI_Bright column
+Table_splitQBValues$Normalization_Factor <- gsub(' Normalization Factor = ', '', Table_splitQBValues$Normalization_Factor)
+
+#Cleaning up any spaces in detector column
+Table_splitQBValues$Detector <- gsub(' ', '', Table_splitQBValues$Detector)
+
+# -Data type corrections-
+#Cleaning up date column, converting data to date type data using as.date
+Table_splitQBValues$Date <- gsub(' ', '', Table_splitQBValues$Date)
+Table_splitQBValues$Date <- as.character(Table_splitQBValues$Date)
+Table_splitQBValues$Date <- as.Date(Table_splitQBValues$Date)
+#Converting data in Time column into Time type data using as_hms
+Table_splitQBValues$Time <- as_hms(Table_splitQBValues$Time)
+
+#Adding missing Laser column for later merging
+Table_splitQBValues$Laser <- c("")
+
+#Rename V3 to Test.id2
+Table_splitQBValues<- rename(Table_splitQBValues, Test.id2 = V3)
+
+#reshape for later merging of columns, as dataframe is currently in wide format
+Table_splitQBValues <- melt(Table_splitQBValues, id.vars = c("Laser", "Detector", "Date", "Time", "Test.id2"))
+
+# Replacing "," with "." as a result of european languague settings
+Table_splitQBValues$value <- gsub(',', '.', Table_splitQBValues$value)
+Table_splitQBValues$value <- as.numeric(Table_splitQBValues$value)
+
+#Final table
+QBValues_All <- Table_splitQBValues
+
+}
+QBValueslist<-lapply(file_path_BD,QBValuesfunction)
+
+#Generate dataframe from all items in list keeping .id column (number in list)
+DataFrameQBValues <- rbindlist(QBValueslist, idcol=TRUE)
+
+#Create column .id3 by combining .id and .id2
+DataFrameQBValues$id3 <- paste(DataFrameQBValues$.id, "-", DataFrameQBValues$Test.id2)
+```
+
+
+
+#-Importing tables-
+#-Dim Table-
+#Function Used to get Dim Table from .log file 
+```{r Function used to extract the dim Table from selected .log files, warning=TRUE}
+#### Begin Lapply
+#Start of function
+Dimfunction<- function(inputdata4){
+# read the text file into R as a character vector
+text_linesT4dim <- readLines(inputdata4)
+# -Clean up data before selecting tabels, this includes baseline set-up and errors- 
+# Define and Re-define values containing start and stop text used to select and remove data (setting to NULL so the start and stop reset for each file)  
+  i<-NULL
+  j <- NULL
+  Remove_Base_Tracking_1<-NULL
+  Remove_Base_Tracking_2<-NULL
+  start_before_abort<-NULL
+  Remove_Session_Abort_1 <- NULL
+  Remove_Session_Abort_2<-NULL
+  Remove_Hardware_Error_1 <- NULL
+  Remove_Hardware_Error_2 <- NULL
+  start_before_Hardware <- NULL
+# read the text file into R as a character vector
+text_linesT4dim <- readLines(inputdata4)
+
+#-Filter HARDWARE ERROR data-
+#Define start and stop to be filtered out
+Remove_Hardware_Error_1 <- grep("<<<< Workflow Run started >>>>", text_linesT4dim)
+Remove_Hardware_Error_2 <- grep("##### HARDWARE ERROR, SETUP FAILED! ########", text_linesT4dim)
+
+# Remove HARDWARE section
+if(length(Remove_Hardware_Error_2) > 0){
+  for(i in (length(Remove_Hardware_Error_2):1)){
+    before_Hardware<-Remove_Hardware_Error_1[which((Remove_Hardware_Error_1-Remove_Hardware_Error_2[i])<0)]
+    start_before_Hardware<-max(before_Hardware)
+    text_linesT4dim <- text_linesT4dim[-(start_before_Hardware:Remove_Hardware_Error_2[i])]
+  }}
+
+
+#-Filter abort data-
+#Define start and stop to be filtered out
+Remove_Session_Abort_1 <- grep("<<<< Workflow Run started >>>>", text_linesT4dim)
+Remove_Session_Abort_2 <- grep("<<<< Setup aborted >>>>", text_linesT4dim)
+
+# Remove abort section
+if(length(Remove_Session_Abort_2) > 0){
+  for(i in (length(Remove_Session_Abort_2):1)){
+    before_abort<-Remove_Session_Abort_1[which((Remove_Session_Abort_1-Remove_Session_Abort_2[i])<0)]
+    start_before_abort<-max(before_abort)
+    text_linesT4dim <- text_linesT4dim[-(start_before_abort:Remove_Session_Abort_2[i])]
+  }}
+
+#-Filter out set up data-
+#Define start and stop to be filtered out
+Remove_Base_Tracking_1 <- grep("Cytometer Baseline Workflow started|TRACKING SETUP WITH OLD BEADS LOT STARTED!|TARGET VALUE SETUP WITH NEW BEADS LOT STARTED!", text_linesT4dim)
+Remove_Base_Tracking_2 <- grep("BASELINE TARGET VALUE SETUP SUCCEEDED!|BASELINE PMT SETUP FAILED|BASELINE TARGET VALUE SETUP FAILED!|TRACKING SETUP WITH OLD BEADS LOT SUCCEEDED!|TARGET VALUE SETUP WITH NEW BEADS LOT SUCCEEDED!", text_linesT4dim)
+
+# Remove baseline section
+if(length(Remove_Base_Tracking_1)>0){
+  for(i in (length(Remove_Base_Tracking_1):1)){
+    text_linesT4dim <- text_linesT4dim[-(Remove_Base_Tracking_1[i]:Remove_Base_Tracking_2[i])]
+
+  }
+}
+
+# - Extract T4dim -
+# set the start and end patterns for the text to extract
+start_patternT4dim <- "### Beads Statistics ###"
+end_patternT4dim <- "Bead Mid"
+start_new_tracking_patterndim <-"TRACKING SETUP STARTED!" 
+
+# initialize a variable to store the extracted text
+extracted_textT4dim <- ""
+
+#Define What to look for .id3
+for (d in 1:length(text_linesT4dim)) {
+  if (grepl("CYTOMETER_NAME", text_linesT4dim[d])) {
+    Cytometer_namedim <- text_linesT4dim[d]
+    Cytometer_serialdim<-text_linesT4dim[d+1]
+    break
+  }}
+
+#Define .txt .id2 for future pass/fail
+Test.id2<-0
+
+#Start loop, analyze every for every line in .log file 
+for (d in 1:length(text_linesT4dim)) {
+
+  # #Checking if line is the same as the define start ID
+  if (grepl(start_patternT4dim, text_linesT4dim[d])) {
+
+    # #Creating variable for storing revelant text
+    section_textT4dim <- ""
+
+    # loop over each line until the end pattern is reached
+    for (s in (d+2):(length(text_linesT4dim))) {
+
+      # check if the current line matches the end pattern
+      if (grepl(end_patternT4dim, text_linesT4dim[s])) {
+        # add the section text to the extracted text variable
+        extracted_textT4dim <- paste(extracted_textT4dim, section_textT4dim)
+        # Go to outer loop
+        break
+      } else {
+        # Write the extracted line to the generated variable
+        section_textT4dim <- paste(section_textT4dim, text_linesT4dim[s], sep = "\n")
+        section_textT4dim <- paste(section_textT4dim, Test.id2, sep = "\t")
+      }
+    }
+  } else {
+    if (grepl(start_new_tracking_patterndim, text_linesT4dim[d])) {
+      Test.id2 <- Test.id2 + 1
+    }
+  }
+}
+
+# -Creating the dataframes- 
+# print the extracted text, remove spacing
+extracted_textT4dim<-str_replace(extracted_textT4dim, "\n\n","")
+extracted_textT4dim<-str_replace(extracted_textT4dim, "\n","")
+
+#Read extracted text into R using fread 
+TableT4dim <- fread(extracted_textT4dim, sep="\t", header = FALSE)
+
+#Remove PLA, Events, Bluidchart, FluidicsSettings and Clusters for Aria 1 and 3
+TableT4dim <- TableT4dim[!grep("PLA", TableT4dim$V2),]
+TableT4dim <- TableT4dim[!grep("Events", TableT4dim$V2),]
+TableT4dim <- TableT4dim[!grep("BuildChart", TableT4dim$V2),]
+TableT4dim<- TableT4dim[!grep("HasFluidicsSettings", TableT4dim$V2),]
+TableT4dim <- TableT4dim[!grep("Cluster", TableT4dim$V2),]
+TableT4dim <- TableT4dim[!grep("Bead", TableT4dim$V2),]
+
+#Edit columns: Date and time
+#Convert date and Time into correct format using parse_date_time
+TableT4dim$V1<-parse_date_time(TableT4dim$V1,orders=c("%I:%M:%S %p %m/%d/%Y","%H:%M:%S %d-%m-%Y"))
+Table_splitT4dim <- TableT4dim
+Table_splitT4dim <- Table_splitT4dim %>% separate(V1, c("Date", "Time"), " ")
+Table_splitT4dim$Time <- gsub(' ', '', Table_splitT4dim$Time)
+Table_splitT4dim$Date <- gsub(' ', '', Table_splitT4dim$Date)
+
+#Seperating into a Detector and en Dim_median column
+Table_splitT4dim <- Table_splitT4dim %>% separate(V2, c("Detector", "Dim_Median"), "(: )")
+
+##Splitting Table to get all variables using seperate, using specific identifiers for each variable to split from
+Table_splitT4dim <- Table_splitT4dim %>% separate(Dim_Median, c("Dim_Median", "Dim_RCV"), "(  RCV = )")
+Table_splitT4dim <- Table_splitT4dim %>% separate(Dim_RCV, c("Dim_RCV", "Dim_RSD"), "(  RSD = )")
+#Cleaning up Median column, revmoing 'Median = '
+Table_splitT4dim$Dim_Median <- gsub(' Median = ', '', Table_splitT4dim$Dim_Median)
+
+#Cleaning up any spaces in detector column
+Table_splitT4dim$Detector <- gsub(' ', '', Table_splitT4dim$Detector)
+
+# -Data type corrections-
+#Cleaning up date column, converting data to date type data using as.date
+Table_splitT4dim$Date <- gsub(' ', '', Table_splitT4dim$Date)
+Table_splitT4dim$Date <- as.character(Table_splitT4dim$Date)
+Table_splitT4dim$Date <- as.Date(Table_splitT4dim$Date)
+#Converting data in Time column into Time type data using as_hms
+Table_splitT4dim$Time <- as_hms(Table_splitT4dim$Time)
+
+#Adding missing Laser column for later merging
+Table_splitT4dim$Laser <- c("")
+
+#Rename V3 to Test.id2
+Table_splitT4dim<- rename(Table_splitT4dim, Test.id2 = V3)
+
+#reshape for later merging of columns, as dataframe is currently in wide format
+Table_splitT4dim <- melt(Table_splitT4dim, id.vars = c("Laser", "Detector", "Date", "Time", "Test.id2"))
+
+# Replacing "," with "." as a result of european languague settings
+Table_splitT4dim$value <- gsub(',', '.', Table_splitT4dim$value)
+Table_splitT4dim$value <- as.numeric(Table_splitT4dim$value)
+
+#Final table
+Table4_dim <- Table_splitT4dim
+}
+
+
+#####End lapply
+#Function
+
+Dimlist<-lapply(file_path_BD,Dimfunction)
+
+#Generate dataframe from all items in list keeping .id column (number in list)
+DataFrameDim <- rbindlist(Dimlist, idcol=TRUE)
+
+#Create column .id3 by combining .id and .id2
+DataFrameDim$id3 <- paste(DataFrameDim$.id, "-", DataFrameDim$Test.id2)
+```
+
+
+
+
+#-Importing tables-
+#-Mid Table-
+#Function Used to get Mid Table from .log file 
+```{r Function used to extract the mid Table from selected .log files, warning=TRUE}
+#### Begin Lapply
+#Start of function
+Midfunction<- function(inputdata5){
+# read the text file into R as a character vector
+text_linesT4mid <- readLines(inputdata5)
+# -Clean up data before selecting tables, this includes baseline set-up and errors- 
+# Define and Re-define values containing start and stop text used to select and remove data (setting to NULL so the start and stop reset for each file)  
+  i<-NULL
+  j <- NULL
+  Remove_Base_Tracking_1<-NULL
+  Remove_Base_Tracking_2<-NULL
+  start_before_abort<-NULL
+  Remove_Session_Abort_1 <- NULL
+  Remove_Session_Abort_2<-NULL
+  Remove_Hardware_Error_1 <- NULL
+  Remove_Hardware_Error_2 <- NULL
+  start_before_Hardware <- NULL
+
+#-Filter HARDWARE ERROR data-
+#Define start and stop to be filtered out
+Remove_Hardware_Error_1 <- grep("<<<< Workflow Run started >>>>", text_linesT4mid)
+Remove_Hardware_Error_2 <- grep("##### HARDWARE ERROR, SETUP FAILED! ########", text_linesT4mid)
+
+# Remove HARDWARE section
+if(length(Remove_Hardware_Error_2) > 0){
+  for(i in (length(Remove_Hardware_Error_2):1)){
+    before_Hardware<-Remove_Hardware_Error_1[which((Remove_Hardware_Error_1-Remove_Hardware_Error_2[i])<0)]
+    start_before_Hardware<-max(before_Hardware)
+    text_linesT4mid <- text_linesT4mid[-(start_before_Hardware:Remove_Hardware_Error_2[i])]
+  }}
+
+#-Filter abort data-
+#Define start and stop to be filtered out
+Remove_Session_Abort_1 <- grep("<<<< Workflow Run started >>>>", text_linesT4mid)
+Remove_Session_Abort_2 <- grep("<<<< Setup aborted >>>>", text_linesT4mid)
+
+# Remove abort section
+if(length(Remove_Session_Abort_2) > 0){
+  for(i in (length(Remove_Session_Abort_2):1)){
+    before_abort<-Remove_Session_Abort_1[which((Remove_Session_Abort_1-Remove_Session_Abort_2[i])<0)]
+    start_before_abort<-max(before_abort)
+    text_linesT4mid <- text_linesT4mid[-(start_before_abort:Remove_Session_Abort_2[i])]
+  }}
+
+#-Filter out set up data-
+#Define start and stop to be filtered out
+Remove_Base_Tracking_1 <- grep("Cytometer Baseline Workflow started|TRACKING SETUP WITH OLD BEADS LOT STARTED!|TARGET VALUE SETUP WITH NEW BEADS LOT STARTED!", text_linesT4mid)
+Remove_Base_Tracking_2 <- grep("BASELINE TARGET VALUE SETUP SUCCEEDED!|BASELINE PMT SETUP FAILED|BASELINE TARGET VALUE SETUP FAILED!|TRACKING SETUP WITH OLD BEADS LOT SUCCEEDED!|TARGET VALUE SETUP WITH NEW BEADS LOT SUCCEEDED!", text_linesT4mid)
+
+# Remove baseline section
+if(length(Remove_Base_Tracking_1)>0){
+  for(i in (length(Remove_Base_Tracking_1):1)){
+    text_linesT4mid <- text_linesT4mid[-(Remove_Base_Tracking_1[i]:Remove_Base_Tracking_2[i])]
+
+  }
+}
+
+# - Extract T4dim -
+# set the start and end patterns for the text to extract
+start_patternT4mid <- "Bead Mid"
+end_patternT4mid <- "Bead Bright"
+start_new_tracking_patternmid <-"TRACKING SETUP STARTED!" 
+
+# initialize a variable to store the extracted text
+extracted_textT4mid <- ""
+
+#Define What to look for .id3
+for (o in 1:length(text_linesT4mid)) {
+  if (grepl("CYTOMETER_NAME", text_linesT4mid[o])) {
+    Cytometer_namemid <- text_linesT4mid[o]
+    Cytometer_serialmid<-text_linesT4mid[o+1]
+    break
+  }}
+
+#Define .txt .id2 for future pass/fail
+Test.id2 <- 0
+
+#Start loop, analyze every for every line in .log file 
+for (o in 1:length(text_linesT4mid)) {
+
+  # #Checking if line is the same as the define start ID
+  if (grepl(start_patternT4mid, text_linesT4mid[o])) {
+
+
+    # #Creating variable for storing revelant text
+    section_textT4mid <- ""
+
+    # loop over each line until the end pattern is reached
+    for (p in (o+1):(length(text_linesT4mid))) {
+
+      # check if the current line matches the end pattern
+      if (grepl(end_patternT4mid, text_linesT4mid[p])) {
+        # add the section text to the extracted text variable
+        extracted_textT4mid <- paste(extracted_textT4mid, section_textT4mid)
+
+        # Go to outer loop
+        break
+      } else {
+        # Write the extracted line to the generated variable
+        section_textT4mid <- paste(section_textT4mid, text_linesT4mid[p], sep = "\n")
+        section_textT4mid <- paste(section_textT4mid, Test.id2, sep = "\t")
+      }
+    }
+  } else {
+    if (grepl(start_new_tracking_patternmid, text_linesT4mid[o])) {
+      Test.id2 <- Test.id2 + 1
+    }
+  }
+}
+
+# -Creating the dataframes- 
+# print the extracted text, remove spacing
+extracted_textT4mid<-str_replace(extracted_textT4mid, "\n\n","")
+extracted_textT4mid<-str_replace(extracted_textT4mid, "\n","")
+
+#Read extracted text into R using fread 
+TableT4mid <- fread(extracted_textT4mid, sep="\t", header = FALSE)
+
+#Remove PLA, Events, Bluidchart, FluidicsSettings and Clusters for Aria 1 and 3
+TableT4mid <- TableT4mid[!grep("PLA", TableT4mid$V2),]
+TableT4mid <- TableT4mid[!grep("Events", TableT4mid$V2),]
+TableT4mid <- TableT4mid[!grep("BuildChart", TableT4mid$V2),]
+TableT4mid <- TableT4mid[!grep("HasFluidicsSettings", TableT4mid$V2),]
+TableT4mid <- TableT4mid[!grep("Cluster", TableT4mid$V2),]
+TableT4mid <- TableT4mid[!grep("Bead", TableT4mid$V2),]
+
+#Edit columns: Date and time
+#Convert date and Time into correct format using parse_date_time
+TableT4mid$V1 <- parse_date_time(TableT4mid$V1,orders=c("%I:%M:%S %p %m/%d/%Y","%H:%M:%S %d-%m-%Y"))
+Table_splitT4mid <- TableT4mid
+#Seperating Date/Time column based on " "
+Table_splitT4mid <- Table_splitT4mid %>% separate(V1, c("Date", "Time"), " ")
+Table_splitT4mid$Time <- gsub(' ', '', Table_splitT4mid$Time)
+Table_splitT4mid$Date <- gsub(' ', '', Table_splitT4mid$Date)
+
+#Splitting Mid_median and Detector columns using seperate on "(: )"
+Table_splitT4mid <- Table_splitT4mid %>% separate(V2, c("Detector", "Mid_Median"), "(: )")
+
+#Splitting Table to get all variables using seperate, using specific identifiers for each variable 
+Table_splitT4mid <- Table_splitT4mid %>% separate(Mid_Median, c("Mid_Median", "Mid_RCV"), "(  RCV = )")
+Table_splitT4mid <- Table_splitT4mid %>% separate(Mid_RCV, c("Mid_RCV", "Mid_RSD"), "(  RSD = )")
+
+#Clean up of columns using gsub using the identifier " Median = "
+Table_splitT4mid$Mid_Median <- gsub(' Median = ', '', Table_splitT4mid$Mid_Median)
+
+#Cleaning up any spaces in detector column
+Table_splitT4mid$Detector <- gsub(' ', '', Table_splitT4mid$Detector)
+
+# -Data type corrections-
+# Replacing "," with "." as a result of european languague settings
+Table_splitT4mid$Date <- gsub(' ', '', Table_splitT4mid$Date)
+Table_splitT4mid$Date <- as.character(Table_splitT4mid$Date)
+Table_splitT4mid$Date <- as.Date(Table_splitT4mid$Date)
+#Converting data in Time column into Time type data using as_hms
+Table_splitT4mid$Time <- as_hms(Table_splitT4mid$Time)
+
+#Adding missing Laser column for later merging
+Table_splitT4mid$Laser <- c("")
+
+#Rename V3 to Test.id2
+Table_splitT4mid<- rename(Table_splitT4mid, Test.id2 = V3)
+
+#reshape for later merging of columns, as dataframe is currently in wide format
+Table_splitT4mid <- melt(Table_splitT4mid, id.vars = c("Laser", "Detector", "Date", "Time", "Test.id2"))
+
+#Replacing "," with "." as a result of european languague settings
+Table_splitT4mid$value <- gsub(',', '.', Table_splitT4mid$value)
+Table_splitT4mid$value <- as.numeric(Table_splitT4mid$value)
+
+#Final table
+Table4_mid<- Table_splitT4mid
+
+}
+
+Midlist<-lapply(file_path_BD,Midfunction)
+
+#Generate dataframe from all items in list keeping .id column (number in list)
+DataFrameMid <- rbindlist(Midlist, idcol=TRUE)
+
+#Create column .id3 by combining .id and .id2
+DataFrameMid$id3 <- paste(DataFrameMid$.id, "-", DataFrameMid$Test.id2)
+
+```
+
+
+
+
+#-Importing tables-
+#-Bright Table-
+#Function Used to get Mid Table from .log file 
+```{r Function used to extract the bright Table from selected .log files, warning=TRUE}
+#### Begin Lapply
+#Start of function
+Brightfunction<- function(inputdata6){
+
+# read the text file into R as a character vector
+text_linesT4bright <- readLines(inputdata6)
+# -Clean up data before selecting tables, this includes baseline set-up and errors- 
+# Define and Re-define values containing start and stop text used to select and remove data (setting to NULL so the start and stop reset for each file)
+  i<-NULL
+  j <- NULL
+  Remove_Base_Tracking_1<-NULL
+  Remove_Base_Tracking_2<-NULL
+  start_before_abort<-NULL
+  Remove_Session_Abort_1 <- NULL
+  Remove_Session_Abort_2<-NULL
+  Remove_Hardware_Error_1 <- NULL
+  Remove_Hardware_Error_2 <- NULL
+  start_before_Hardware <- NULL
+# read the text file into R as a character vecto
+text_linesT4bright <- readLines(inputdata6)
+
+# set the start and end patterns for the text to extract
+start_patternT4bright <- "Bead Bright"
+end_patternT4bright <- "##### TRACKING SETUP SUCCEEDED! #######"
+start_new_tracking_patternbright <- "TRACKING SETUP STARTED!" 
+
+#-Filter HARDWARE ERROR data-
+#Define start and stop to be filtered out
+Remove_Hardware_Error_1 <- grep("<<<< Workflow Run started >>>>", text_linesT4bright)
+Remove_Hardware_Error_2 <- grep("##### HARDWARE ERROR, SETUP FAILED! ########", text_linesT4bright)
+
+# Remove HARDWARE section
+if(length(Remove_Hardware_Error_2) > 0){
+  for(i in (length(Remove_Hardware_Error_2):1)){
+    before_Hardware<-Remove_Hardware_Error_1[which((Remove_Hardware_Error_1-Remove_Hardware_Error_2[i])<0)]
+    start_before_Hardware<-max(before_Hardware)
+    text_linesT4bright <- text_linesT4bright[-(start_before_Hardware:Remove_Hardware_Error_2[i])]
+  }}
+
+
+#-Filter abort data-
+#Define start and stop to be filtered out
+Remove_Session_Abort_1 <- grep("<<<< Workflow Run started >>>>", text_linesT4bright)
+Remove_Session_Abort_2 <- grep("<<<< Setup aborted >>>>", text_linesT4bright)
+
+# Remove abort section
+if(length(Remove_Session_Abort_2) > 0){
+  for(i in (length(Remove_Session_Abort_2):1)){
+    before_abort<-Remove_Session_Abort_1[which((Remove_Session_Abort_1-Remove_Session_Abort_2[i])<0)]
+    start_before_abort<-max(before_abort)
+    text_linesT4bright <- text_linesT4bright[-(start_before_abort:Remove_Session_Abort_2[i])]
+  }}
+
+
+#-Filter out set up data-
+#Define start and stop to be filtered out
+Remove_Base_Tracking_1 <- grep("Cytometer Baseline Workflow started|TRACKING SETUP WITH OLD BEADS LOT STARTED!|TARGET VALUE SETUP WITH NEW BEADS LOT STARTED!", text_linesT4bright)
+Remove_Base_Tracking_2 <- grep("BASELINE TARGET VALUE SETUP SUCCEEDED!|BASELINE PMT SETUP FAILED|BASELINE TARGET VALUE SETUP FAILED!|TRACKING SETUP WITH OLD BEADS LOT SUCCEEDED!|TARGET VALUE SETUP WITH NEW BEADS LOT SUCCEEDED!", text_linesT4bright)
+
+
+# Remove baseline section
+if(length(Remove_Base_Tracking_1)>0){
+  for(i in (length(Remove_Base_Tracking_1):1)){
+    text_linesT4bright <- text_linesT4bright[-(Remove_Base_Tracking_1[i]:Remove_Base_Tracking_2[i])]
+
+  }
+}
+
+# - Extract T4bright -
+# set the start and end patterns for the text to extract
+start_patternT4bright <- "Bead Bright"
+end_patternT4bright <- "##### TRACKING SETUP SUCCEEDED! #######"
+start_new_tracking_patternbright <- "TRACKING SETUP STARTED!"
+
+# initialize a variable to store the extracted text
+extracted_textT4bright <- ""
+
+# initialize a variable to store the extracted text
+extracted_textT4bright <- ""
+for (b in 1:length(text_linesT4bright)) {
+  if (grepl("CYTOMETER_NAME", text_linesT4bright[b])) {
+    Cytometer_namebright <- text_linesT4bright[b]
+    Cytometer_serialbright<-text_linesT4bright[b+1]
+    break
+  }}
+
+#Define .txt .id2 for future pass/fail
+Test.id2 <- 0
+
+#Start loop, analyze every for every line in .log file 
+for (b in 1:length(text_linesT4bright)) {
+
+  # #Checking if line is the same as the define start ID
+  if (grepl(start_patternT4bright, text_linesT4bright[b])) {
+
+    # #Creating variable for storing revelant text
+    section_textT4bright <- ""
+
+    # loop over each line until the end pattern is reached
+    for (r in (b+1):(length(text_linesT4bright))) {
+
+      # check if the current line matches the end pattern
+      if (grepl(end_patternT4bright, text_linesT4bright[r])) {
+        # add the section text to the extracted text variable
+        extracted_textT4bright <- paste(extracted_textT4bright, section_textT4bright)
+        # Go to outer loop
+        break
+      } else {
+        # Write the extracted line to the generated variable
+        section_textT4bright <- paste(section_textT4bright, text_linesT4bright[r], sep = "\n")
+        section_textT4bright <- paste(section_textT4bright, Test.id2, sep = "\t")
+      }
+    }
+  } else {
+    if (grepl(start_new_tracking_patternbright, text_linesT4bright[b])) {
+      Test.id2 <- Test.id2 + 1
+    }
+  }
+}
+
+# -Creating the dataframes- 
+# print the extracted text, remove spacing
+extracted_textT4bright<-str_replace(extracted_textT4bright, "\n\n","")
+extracted_textT4bright<-str_replace(extracted_textT4bright, "\n","")
+
+#Read extracted text into R using fread
+TableT4bright <- fread(extracted_textT4bright, sep="\t", header = FALSE)
+
+#Remove PLA, Events, Bluidchart, FluidicsSettings and Clusters for Aria 1 and 3
+TableT4bright <- TableT4bright[!grep("PLA", TableT4bright$V2),]
+TableT4bright <- TableT4bright[!grep("Events", TableT4bright$V2),]
+TableT4bright <- TableT4bright[!grep("BuildChart", TableT4bright$V2),]
+TableT4bright <- TableT4bright[!grep("HasFluidicsSettings", TableT4bright$V2),]
+TableT4bright <- TableT4bright[!grep("Cluster", TableT4bright$V2),]
+TableT4bright <- TableT4bright[!grep("Bead", TableT4bright$V2),]
+TableT4bright <- TableT4bright[!grep("Target Median", TableT4bright$V2),]
+
+#Edit columns: Date and time
+#Convert date and Time into correct format using parse_date_time
+TableT4bright$V1 <- parse_date_time(TableT4bright$V1,orders=c("%I:%M:%S %p %m/%d/%Y","%H:%M:%S %d-%m-%Y"))
+Table_splitT4bright <- TableT4bright
+#Seperating Date/Time column based on " "
+Table_splitT4bright <- Table_splitT4bright %>% separate(V1, c("Date", "Time"), " ")
+Table_splitT4bright$Time <- gsub(' ', '', Table_splitT4bright$Time)
+Table_splitT4bright$Date <- gsub(' ', '', Table_splitT4bright$Date)
+
+#Splitting Bright_median and Detector columns using seperate on "(: )"
+Table_splitT4bright <- Table_splitT4bright %>% separate(V2, c("Detector", "Bright_Median"), "(: )")
+
+#Splitting Table to get all variables using seperate, using specific identifiers for each variable 
+Table_splitT4bright <- Table_splitT4bright%>% separate(Bright_Median, c("Bright_Median", "Bright_RCV"), "(  RCV = )")
+Table_splitT4bright <- Table_splitT4bright %>% separate(Bright_RCV, c("Bright_RCV", "Bright_RSD"), "(  RSD = )")
+
+#Clean up of columns using gsub using the identifier " Median = "
+Table_splitT4bright$Bright_Median <- gsub(' Median = ', '', Table_splitT4bright$Bright_Median)
+
+#Cleaning up any spaces in detector column
+Table_splitT4bright$Detector <- gsub(' ', '', Table_splitT4bright$Detector)
+
+# -Data type corrections-
+# Replacing "," with "." as a result of european languague settings
+Table_splitT4bright$Date <- gsub(' ', '', Table_splitT4bright$Date)
+Table_splitT4bright$Date <- as.character(Table_splitT4bright$Date)
+Table_splitT4bright$Date <- as.Date(Table_splitT4bright$Date)
+#Converting data in Time column into Time type data using as_hms
+Table_splitT4bright$Time <- as_hms(Table_splitT4bright$Time)
+
+#Adding missing Laser column for later merging
+Table_splitT4bright$Laser <- c("")
+
+#Rename V3 to Test.id2
+Table_splitT4bright<- rename(Table_splitT4bright, Test.id2 = V3)
+
+#reshape for later merging of columns, as dataframe is currently in wide format
+Table_splitT4bright <- melt(Table_splitT4bright, id.vars = c("Laser", "Detector", "Date", "Time", "Test.id2"))
+
+#Replacing "," with "." as a result of european languague settings
+Table_splitT4bright$value <- gsub(',', '.', Table_splitT4bright$value)
+Table_splitT4bright$value <- as.numeric(Table_splitT4bright$value)
+
+#Final table
+Table4_bright<- Table_splitT4bright
+}
+
+Brightlist<-lapply(file_path_BD,Brightfunction)
+
+#Generate dataframe from all items in list keeping .id column (number in list)
+DataFrameBright <- rbindlist(Brightlist, idcol=TRUE)
+
+#Create column .id3 by combining .id and .id2
+DataFrameBright$id3 <- paste(DataFrameBright$.id, "-", DataFrameBright$Test.id2)
+
+```
+
+
+#- Merging total dataframe - 
+#Merging all dataframes generated
+```{r Merging all dataframe using rbind, warning=TRUE}
+TableFinal_BD <- rbind(DataFrameASF, DataFrameDelay,DataFrameQBValues,DataFrameDim,DataFrameMid,DataFrameBright)
+```
+
+#- Generating dataframe for instrument names- 
+#Generating dataframe based on  file_path_BD
+```{r Generating dataframe based on  file_path_BD, warning=TRUE}
+read_lines.df<- as.data.frame(file_path_BD)
+```
+
+#Generating dataframe containing .id column and directory names 
+```{r Generating dataframe containing .id column and directory names , warning=TRUE}
+Directory_names <- setDT(read_lines.df, keep.rownames = ".id")
+```
+
+#Removing unecessary string from the directory name to only be left with the instrument name part 1
+```{r #Removing unecessary string from the directory name to only be left with the instrument name part 1, warning=TRUE}
+Directory_names$file_path_BD <- sub(".*?/Data_", "", Directory_names$file_path_BD)
+```
+
+#Removing unecessary string from the directory name to only be left with the instrument name part 2
+```{r #Removing unecessary string from the directory name to only be left with the instrument name part 2, warning=TRUE}
+Directory_names$file_path_BD <- sub("/S.*", "", Directory_names$file_path_BD)
+```
+
+#Rename column named file_path_BD to instrument using rename()
+```{r #Rename column named file_path_BD to instrument using rename(), warning=TRUE}
+Directory_names <- Directory_names%>% rename(Instrument = file_path_BD)
+```
+
+#Merge Table.final with directory names using merge.data.frame based on .id in order to get an instrument column
+```{r Merge Table.final with directory names using merge.data.frame based on .id in order to get an instrument column, warning=TRUE}
+TableFinal_BD <- merge.data.frame(Directory_names, TableFinal_BD, by.x= ".id")
+```
+
+
+#-Final edits of Table final- 
+#Merging Laser and Detector columns together using paste()
+```{r Merging Laser and Detector columns together using paste(), warning=TRUE}
+TableFinal_BD$Laser_Detector <- paste(TableFinal_BD$Laser,TableFinal_BD$Detector)
+```
+
+```{r Removing old Laser column, warning=TRUE}
+TableFinal_BD$Laser <- NULL
+```
+
+```{r Removing old Detector column, warning=TRUE}
+TableFinal_BD$Detector <- NULL
+```
+
+#Changing the column name Test.id2 to .id2
+```{r}
+TableFinal_BD<- rename(TableFinal_BD, .id2 = Test.id2)
+```
+
+
+#-Final clean up of Table final- 
+#Clean up for .id3 column using gsub
+```{r #Clean up for .id3 column using gsub, warning=TRUE}
+TableFinal_BD$id3<- gsub(' ', '', TableFinal_BD$id3)
+```
+
+#Removing Spaces in Laser_Detector column using gsub()
+```{r Removing Spaces in Laser_Detector column using gsub(), warning=TRUE}
+TableFinal_BD$Laser_Detector<- gsub(' ', '', TableFinal_BD$Laser_Detector)
+```
+
+#Final conversion of value column to numeric using as.numeric()
+```{r Final conversion of value column to numeric using as.numeric(), warning=TRUE}
+TableFinal_BD$value <- as.numeric(TableFinal_BD$value)
+```
+
+#Extra dataframe in wide table format to generate Excel file for application 
+```{r (Post) Extra dataframe in wide table format to generate Excel file for application, warning=TRUE}
+Wide_Table_BD<-dcast(TableFinal_BD,Date + Time + Instrument ~ variable + Laser_Detector, 
+                  value.var = "value",
+                  fun.aggregate = mean, na.rm=TRUE)
+```
+
+#Extra column for exporting of images
+```{r (Post) Extra column for exporting of images, warning=TRUE}
+TableFinal_BD$FWparams<-paste(TableFinal_BD$Instrument,TableFinal_BD$variable,TableFinal_BD$Laser_Detector,sep="_")
+```
+
+# -Saving tables for Rshiny application- 
+```{r Saving tables for Rshiny application, warning=TRUE}
+save(TableFinal_BD, file = "BD.RData")
+save(Wide_Table_BD, file = "Wide.Table.BD.RData")
+```
+

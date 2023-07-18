@@ -1,0 +1,432 @@
+---
+title: Pre-processing Aurora
+author: "Britt Kolen"
+date: "2023-07-18"
+output: html_document
+---
+#-Date, time and instrument columns- 
+#Converting list of .csv files into dataframe 
+```{r Converting list into dataframe using as.data.frame(), warning=TRUE}
+DF.filedirectory<- as.data.frame(File.List.Aurora_All)
+```
+
+
+#Adding an .id column 
+```{r Adding .id column using setDT(), warning=TRUE}
+DF.filedirectoryid <- setDT(DF.filedirectory, keep.rownames = ".id")
+```
+
+
+#Changing second column name of dataframe to date
+```{r Changing column name of dataframe to date using the rename() function, warning=TRUE}
+DF.filedirectoryidDate <- DF.filedirectoryid %>% rename(Date = File.List.Aurora_All)
+```
+
+
+#Deleting excess text
+```{r Deleting excess text using sub(), warning=TRUE}
+DF.filedirectoryidDate$Date <- sub(".*?/Data_", "", DF.filedirectoryidDate$Date)
+```
+
+
+#Splitting the Instrument and Date columns 
+```{r #Splitting the instrument and Date columns using sepreate and "/" as an identifier, warning=TRUE}
+DF.filedirectoryidInstrument <- DF.filedirectoryidDate %>% separate(Date, c("Instrument", "Date"), "/")
+```
+
+
+#Deleting text referring to the directory in the Date column, detecting the .*?_20 in the directory name, and using sub() to replacing it with ''
+```{r (Deleting text referring to the directory of the Date column, so only the Date and Time remains, warning=TRUE}
+DF.filedirectoryidInstrument$Date <- sub(".*?_20", "20", DF.filedirectoryidInstrument$Date)
+```
+
+
+#Splitting the Date column in a date and time column, using the function seperate(), seperating on "_"
+```{r Splittig the Date column in a Time and Date column, warning=TRUE}
+DF.filedirectoryidTime_Date <- DF.filedirectoryidInstrument %>% separate(Date, c("Date", "Time"), "_")
+```
+
+
+#Final clean up of time column, removing ".csv", replacing it with '' using gsub()
+```{r Final clean up of the Time column, warning=TRUE}
+DF.filedirectoryidTime_Date$Time <- gsub('.CSV', '', DF.filedirectoryidTime_Date$Time)
+```
+
+
+#Converting the character() type dates into date() type data, using ymd()
+```{r Converting data in Date column into date type data, warning=TRUE}
+DF.filedirectoryidTime_Date$Date <- ymd(DF.filedirectoryidTime_Date$Date)
+```
+
+
+#Converting time in columns into data recognized as time data, using, parse_time
+```{r Converting data in the Time column being recognized as time type Data, warning=TRUE}
+DF.filedirectoryidTime_Date$Time<- parse_time(DF.filedirectoryidTime_Date $Time, "%H%M%S")
+```
+
+
+
+
+
+
+
+#-Part one of dataset-
+#Importing items from list as tables with fread, specifying "," as a seperator and skipping the top of the file until "Gain".
+```{r Importing files from list as tables with fread, warning=TRUE}
+Tables.list<- lapply(File.List.Aurora_All, fread, header= TRUE, skip = "Gain", fill = TRUE, na.strings= "")
+```
+
+#Deleting section starting with laser settings from tables using filter() and cumsum(), based on present NA values. 
+```{r (Part 1) Deleting section starting with Laser settings, warning=TRUE}
+Tables.list.del <- lapply(Tables.list, filter, cumsum(Laser == "NA") == 0)
+```
+
+
+#Deleting the "Detector Settings" row present in the tables using !grepl
+```{r (Part 1) Deleting detector settings row, warning=TRUE}
+Tables.list.nodetec <- lapply(Tables.list.del, filter, !grepl("Detector Settings", Laser))
+```
+
+#Filtering out error where file has more that 8 columns
+#Create replace dataframe
+```{r (Part 1) Create replace dataframe, warning=TRUE}
+Replace1<- data.frame(a = "", b = "", c = "", d = "", e = "", f = "", g = "", h = "")
+```
+
+#Rename columns in replace dataframe with names that fit the columns names of the other dataframes
+```{r (Part 1) Rename columns in replace dataframe with names that fit the columns names of the other dataframes, warning=TRUE}
+Replace1 <-  Replace1 %>%  rename("Laser"= "a", "Detector" = "b", "Gain" = "c", "Delta Gain" = "d", "% Gain Change" = "e", "Median" = "f", "% rCV" = "g", "Sensitivity" = "h")
+```
+
+#Replace any tables with column count > 8 with replace Table
+```{r (Part 1) Replace any tables with column count > 8 with replace Table, warning=TRUE}
+Tables.list.nodetec <- lapply(Tables.list.nodetec, function(i) {if(ncol(i) > 8) {i <- Replace1} else {i}})
+```
+
+
+#Binding all tables of list.nodetec together to one dataframe using rblindlist, setting idcol as true for adding date and time.
+```{r (Part 1) Binding all tables together to one dataframe, warning=TRUE}
+DF.tablesAurora <- rbindlist(Tables.list.nodetec, idcol=TRUE)
+```
+
+
+#Merging the .id dataframe with the generated dataframe based on the .id column, using merge.data.frame()
+```{r (Part 1) Merging dataframes based on .id column, warning=TRUE}
+DF.Aurora.id <- merge.data.frame(DF.tablesAurora, DF.filedirectoryidTime_Date, by.x= ".id")
+```
+
+
+#Converting the finished wide table for the first part of the total dataset, into a long table format using melt().
+```{r (Part 1) Converting part one of table into long table format., warning=TRUE}
+Table.done.Aurora <- melt(DF.Aurora.id, id.vars = c("Laser", "Detector", "Date", "Time", ".id", "Instrument"))
+```
+
+
+
+
+
+#-Part two of dataset-
+#Importing the original list again as tables, skipping until "Laser delay" 
+```{r (Part 2) Importing items from list as tables using fread for part 2 of the dataset, warning=TRUE}
+Tablespt2.list <- lapply(File.List.Aurora_All, fread, header= TRUE, skip = "Laser Delay", fill = TRUE, sep = ",")
+```
+
+
+#Deleting lower part of the remaining table, using filter(), filtering on "FSC Area Scaling Factor"
+```{r (Part 2) Deleting the lower part of the remaining table, warning=TRUE}
+Tablespt2.del.list <- lapply(Tablespt2.list, filter, cumsum(Laser == "FSC Area Scaling Factor") == 0)
+```
+ 
+ 
+#Filtering out error where file has more that 4 columns
+#Create replace dataframe
+```{r (Part 2) Create replace dataframe, warning=TRUE}
+Replace2<- data.frame(a = "", b = "", c = "", V4 = "")
+```
+
+#Rename columns in replace dataframe with names that fit the columns names of the other dataframes
+```{r (Part 2) Rename columns in replace dataframe with names that fit the columns names of the other dataframes Table2, warning=TRUE}
+Replace2 <-  Replace2 %>%  rename("Laser"= "a", "Laser Delay" = "b", "Area Scaling Factor" = "c")
+```
+
+#Replace any tables with column count > 4 with replace Table
+```{r (Part 2) Rename columns in replace dataframe with names that fit the columns names of the other dataframes}
+Tablespt2.del.list <- lapply(Tablespt2.del.list, function(i) {if(ncol(i) > 4) {i <- Replace2} else {i}})
+```
+
+#Binding datasets together using rbindlist()
+```{r (Part 2) Binding datasets together, warning=TRUE}
+DF.Aurora2.bind <- rbindlist(Tablespt2.del.list, idcol=TRUE, fill = TRUE)
+```
+
+
+#Merging the .id dataframe with the generated dataframe based on the .id column, using merge.data.frame()
+```{r (Part 2) Merging dtaframes based on .id column}
+DF.id.Aurora2 <- merge.data.frame(DF.Aurora2.bind, DF.filedirectoryidTime_Date, by.x= ".id")
+```
+
+
+#Adding a Detector column, used for later merging of the dataframe of the first part of the file with the second part of the file 
+```{r (Part 2) Adding extra Detector column, warning=TRUE}
+DF.id.Aurora2$Detector <- c("")
+```
+
+
+#Converting the dataframe into a long table format using melt()
+```{r (Part 2) Converting part two of table into long table format., warning=TRUE}
+Table.done2.Aurora <- melt(DF.id.Aurora2, id.vars = c("Laser", "Detector", "Date", "Time", ".id", "Instrument"))
+```
+
+
+#Using rbind() to bind the dataframes of part 1 and 2
+```{r (Part 2) Binding the part 1 and part 2 tables together, warning=TRUE}
+Table.done1and2.Aurora <- rbind(Table.done2.Aurora, Table.done.Aurora)
+```
+
+
+
+
+
+#-Part three of dataset-
+#Importing items from list as tables with fread, specifying "," as a seperator and skipping the top of the file until "FSC Area Scaling Factor".
+```{r (Part 3) Importing items from list as tables using fread for part 3 of the dataset}
+Tablespt3.list<- lapply(File.List.Aurora_All, fread, header= FALSE, skip = "FSC Area Scaling Factor", fill = TRUE, na.strings= "", sep = ",")
+```
+
+
+#Deleting the windows extension section of the tables using subset() 
+```{r (Part 3) Deleting the windows extenstion section of the tables, warning=TRUE}
+Tables.nowindow3 <- lapply(Tablespt3.list, subset, select = -c(3,4))
+```
+
+
+#Filtering out error where file has more that 2 columns
+#Create replace dataframe
+```{r (Part 3) Create replace dataframe, warning=TRUE}
+Replace3<- data.frame(V1 = "", V2 = "")
+```
+
+#Replace any tables with column count > 4 with replace Table
+```{r (Part 3) Rename columns in replace dataframe with names that fit the columns names of the other dataframes, Table3, warning=TRUE}
+Tables.nowindow3 <- lapply(Tables.nowindow3, function(i) {if(ncol(i) > 2) {i <- Replace3} else {i}})
+```
+
+
+#Binding datasets together using rbindlist()
+```{r (Part 3) Binding datasets together, warning=TRUE}
+DF.Aurora3.bind <- rbindlist(Tables.nowindow3, idcol= TRUE)
+```
+
+
+#Changing the column names using rename()
+```{r (Part 3) Changing the column names of the 2nd and 3rd column to variable and value, warning=TRUE}
+DF.Aurora3rename.bind<- rename(DF.Aurora3.bind, variable = 2, value = 3)
+```
+
+
+#Merging the .id dataframe with the generated dataframe based on the .id column, using merge.data.frame()
+```{r (Part 3) Merging dtaframes based on .id column, warning=TRUE}
+DF.id.Aurora3 <- merge.data.frame(DF.Aurora3rename.bind, DF.filedirectoryidTime_Date, by.x= ".id")
+```
+
+
+#Adding the "Laser" column
+```{r (Part 3) Adding the Laser column, warning=TRUE}
+DF.id.Aurora3$Laser <- c("")
+```
+
+
+#Adding the "Detector" column
+```{r (Part 3) Adding the Detector column, warning=TRUE}
+DF.id.Aurora3$Detector <- c("")
+
+```
+
+
+#Merging part 1,2 and 3 into a long table
+```{r (Part 3) Binding the part 1, warning=TRUE}
+TableFinal_Aurora <- rbind(Table.done1and2.Aurora, DF.id.Aurora3)
+```
+
+
+
+
+
+#-Post-processing of dataframe-
+#Substituting all "_" values in the titels of columns the now merged dataframes using gsub()
+```{r (Post) Substituting all "_" in the titles of columns, warning=TRUE}
+TableFinal_Aurora$variable <- gsub(' ', '_', TableFinal_Aurora$variable)
+```
+
+
+#Removing the "%" from the column title %_rCV
+```{r (Post) Removing the "%" from column names, warning=TRUE}
+TableFinal_Aurora$variable <- gsub('%', 'Perc', TableFinal_Aurora$variable)
+```
+
+
+#Converting values to numeric data types, using the function as.numeric()
+```{r Converting values to numberic data types, warning=TRUE}
+TableFinal_Aurora$value <-as.numeric(TableFinal_Aurora$value)
+```
+
+
+
+#Writing the pass and fail function. Using case_when and mutate(). A pass and fail column in generated, the values in this column is eiter pass of fail depending on the limits for certain parameters  
+```{r Writing the Pass and Fail function and creating the Pass and Fail column, warning=TRUE}
+TableFinal_Aurora <- TableFinal_Aurora %>%
+  mutate(Pass_and_Fail = case_when(
+    variable == "Perc_Gain_Change" & value <= 100 ~ "Pass",
+    variable == "Perc_Gain_Change" & value > 100 ~ "Fail",
+    Detector == "UV3 (428)" & variable == "Perc_rCV" & value <= 6 ~ "Pass",
+    Detector == "UV3 (428)" & variable == "Perc_rCV" & value > 6 ~ "Fail",
+    Detector == "V3 (458)" & variable == "Perc_rCV" & value <= 6 ~ "Pass",
+    Detector == "V3 (458)" & variable == "Perc_rCV" & value > 6 ~ "Fail",
+    Detector == "R3 (697)" & variable == "Perc_rCV" & value <= 6 ~ "Pass",
+    Detector == "R3 (697)" & variable == "Perc_rCV" & value > 6 ~ "Fail",
+    Detector == "B3 (542)" & variable == "Perc_rCV" & value <= 6 ~ "Pass",
+    Detector == "B3 (542)" & variable == "Perc_rCV" & value > 6 ~ "Fail",
+    Detector == "YG3 (615)" & variable == "Perc_rCV" & value <= 6 ~ "Pass",
+    Detector == "YG3 (615)" & variable == "Perc_rCV" & value > 6 ~ "Fail",
+    Detector == "SSC" & variable == "Perc_rCV" & value <= 8 ~ "Pass",
+    Detector == "SSC"& variable == "Perc_rCV" & value > 8 ~ "Fail",
+    Detector == "SSC-B" & variable == "Perc_rCV" & value <= 8 ~ "Pass",
+    Detector == "SSC-B"& variable == "Perc_rCV" & value > 8 ~ "Fail"
+    
+  )
+  )
+```
+
+
+
+#Writing the pass and fail function. Using case_when and mutate(). Warning column in generated, the values in this column is eiter pass of fail depending on the limits for certain parameters
+```{r Writing the Pass and Fail function and crating the Pass and Fail column, warning=TRUE}
+TableFinal_Aurora <- TableFinal_Aurora %>%
+mutate(Warning_Parameter = case_when(
+    variable == "Area_Scaling_Factor" & value <= 0.9 ~ "Passed",
+    variable == "Area_Scaling_Factor" & value > 0.9 ~ "Warning",
+    variable == "Flow_Rate" & value > 10.5 & value < 19.5 ~ "Passed",
+    variable == "Flow_Rate" & value < 10.5 ~ "Warning",
+    variable == "Flow_Rate" & value > 19.5 ~ "Warning"
+)
+)
+```
+
+
+
+#Run after pass and fail,using is.na() all instances of NA are deleted.
+```{r (Post) deleting all instances of NA, warning=TRUE}
+TableFinal_Aurora[is.na(TableFinal_Aurora)] <- ""
+```
+
+
+#Testing removing empty space from the value column  from dataframe to remove V4
+```{r (Post) removing empty space from the value column, warning=TRUE}
+TableFinal_Aurora <- TableFinal_Aurora[TableFinal_Aurora$value != '', ]  
+```
+
+
+#Extra run to make sure values are numeric type, using as.numeric()
+```{r (Post) Extra run to make sure values are of numeric type, warning=TRUE}
+TableFinal_Aurora$value <-as.numeric(TableFinal_Aurora$value)
+```
+
+
+#Creating list that contains correct pass/fail requirements 
+```{r (Post) Loop to fill in Pass anf Fill column, warning=TRUE}
+List.id_columnsp_f <-lapply(unique(TableFinal_Aurora$.id),
+       function(i) {
+         Loop_Pass_Fail <-TableFinal_Aurora[TableFinal_Aurora$.id == i,]
+         Loop_Pass_Fail<-Loop_Pass_Fail$Pass_and_Fail
+         if(sum(str_detect(Loop_Pass_Fail, "Fail")) > 0){
+           QC_result <-"Fail"
+         } 
+         
+         else {
+           QC_result <-"Pass" 
+         }
+         
+         QC_result
+       }
+)
+```
+
+
+#Convert list with pass/fail requirements to dataframe
+```{r (Post) Convert list with pass/fail requirements to dataframe, warning=TRUE}
+DF.id_columnsp_f <- as.data.frame(do.call(rbind, List.id_columnsp_f))
+```
+
+
+#Adding .id column to pass/fail requirement dataframe 
+```{r (Post) Adding .id column to pass/fail requirement dataframe , warning=TRUE}
+DF.w_id_columnsp_f <- setDT(DF.id_columnsp_f, keep.rownames = ".id")
+```
+
+
+#Renaming undefined column "Pass_and_Fail"
+```{r (Post) Renaming undefined column "Pass_and_Fail", warning=TRUE}
+DF.w_id_columnsp_f2 <-  DF.w_id_columnsp_f %>% rename(Pass_and_Fail = V1)
+```
+
+
+#Merging pass/fail requirements dataframe with TableFinal_Aurora
+```{r (Post) Merging pass/fail requirements dataframe with TableFinal_Aurora, warning=TRUE}
+TableFinal_Aurora <- merge.data.frame(TableFinal_Aurora ,DF.w_id_columnsp_f2, by.x= ".id", by.y = ".id")
+```
+
+
+#Removing empty column from TableFinal_Aurora
+```{r (Post) Removing empty column from TableFinal_Aurora, warning=TRUE}
+TableFinal_Aurora <- TableFinal_Aurora %>% select(-c(Pass_and_Fail.x))
+```
+
+
+#Rename column to Pass_and_Fail again in TableFinal_Aurora
+```{r (Post) Rename column to Pass_and_Fail again in TableFinal_Aurora, warning=TRUE}
+TableFinal_Aurora <-  TableFinal_Aurora %>% rename(Pass_and_Fail = Pass_and_Fail.y)
+```
+
+
+#Extra run 2 to make sure values are numeric type, using as.numeric()
+```{r Extra run to make sure values are numeric type, warning=TRUE}
+TableFinal_Aurora$value <-as.numeric(TableFinal_Aurora$value)
+```
+
+
+#Extra run 2 to make sure Date column only includes dates, using as.Date()
+```{r (Post) Extra run 2 to make sure Date column only includes dates, using as.Date(), warning=TRUE}
+TableFinal_Aurora$Date <-ymd(TableFinal_Aurora$Date)
+```
+
+
+#Sort based on letter and number behind Detector name in detector column 
+```{r Sort based on letter and number behind Detector name in detector column , warning=TRUE}
+TableFinal_Aurora$Detector<-as.factor(TableFinal_Aurora$Detector)
+TableFinal_Aurora$Detector<-fct_relevel(TableFinal_Aurora$Detector,mixedsort(levels(TableFinal_Aurora$Detector)))
+TableFinal_Aurora <-setorder(TableFinal_Aurora, Detector)
+
+```
+
+#Extra dataframe in wide table format to generate Excel file for application 
+```{r (Post) Extra dataframe in wide table format to generate Excel file for application , warning=TRUE}
+Wide_Table_Aurora<-dcast(TableFinal_Aurora,Date + Time + Instrument + Pass_and_Fail ~ variable+Laser+Detector, 
+                  value.var = "value",
+                  fun.aggregate = mean, na.rm=TRUE)
+```
+
+#Extra column for exporting of images
+```{r (Post) Extra column for exporting of images, warning=TRUE}
+TableFinal_Aurora$FWparams<-paste(TableFinal_Aurora$Instrument,TableFinal_Aurora$variable,TableFinal_Aurora$Laser,TableFinal_Aurora$Detector,sep="_")
+```
+
+
+
+
+
+#- Save TableFinal_Aurora and TableFinal_Aurora for RShiny application
+#Save data
+```{r Save the data, warning=TRUE}
+save(TableFinal_Aurora, file = "Aurora.RData")
+save(Wide_Table_Aurora, file = "Wide_table.RData")
+```

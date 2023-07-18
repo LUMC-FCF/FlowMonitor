@@ -63,7 +63,7 @@ library(gtools)
 If Packages are missing or not updated, and running the above does not work, install and update packages manually with RStudio.
 
 # Get Started 
-1. Save your QC files on your PC, make sure you "Data_" in the directories files are saved under. 
+1. Save your QC files on your PC, make sure you include "Data_" in the directories names files are saved under. 
 2. Select a directory with the directory selector.
 3. Press the Import files button.
 4. Press the Pre-Processing button. 

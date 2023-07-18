@@ -1,9 +1,5 @@
 # FlowMonitorApp
 FlowMonitorApp developed by the FCF, allows for visualization of Flow Cytometer Quality Control data. 
-# FlowMonitorPrivate
-FlowMonitor is an application used to visualize Flow Cytometry QC data. 
-
-(private version for final report, will not be updated by FCF as of 18-07-2023)
 
 # How to install application 
 Step 1: Firstly, install the package devtools and open the package library (if devtools is not already installed):
@@ -11,7 +7,7 @@ Step 1: Firstly, install the package devtools and open the package library (if d
 - library(“devtools”)
 
 Step 2: Install the application 
-devtools::install_github("LUMC-FCF/FlowMonitorPrivate", auth_token = "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", dependencies = TRUE) 
+devtools::install_github("LUMC-FCF/FlowMonitorPrivate", auth_token = "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", dependencies = TRUE) 
 
 Step 3: Start the application 
 library(“FlowMonitorApp”)

@@ -1,8 +1,6 @@
 # FlowMonitorPrivate
 FlowMonitor is an application used to visualize Flow Cytometry QC data. 
 
-(private version for final report, will not be updated by FCF as of 18-07-2023)
-
 # How to install application 
 Step 1: Firstly, install the package devtools and open the package library (if devtools is not already installed):
 - Command Install.packages(“devtools”)

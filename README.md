@@ -9,7 +9,7 @@ Step 1: Firstly, install the package devtools and open the package library (if d
 - library(“devtools”)
 
 Step 2: Install the application 
-devtools::install_github("BrittK2002/FlowMonitorPrivate", auth_token = "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", dependencies = TRUE) 
+devtools::install_github("LUMC-FCF/FlowMonitorApp", auth_token = "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", dependencies = TRUE) 
 
 Step 3: Start the application 
 library(“FlowMonitorApp”)

@@ -1,0 +1,86 @@
+---
+title: "BDFullScriptPre-ProcessingV2"
+author: "Tamar Tak"
+date: '2023-08-04'
+output: html_document
+---
+
+```{r temporary chunk for loading data, include=FALSE}
+#file_path_BD<-"//vf-lumc-home.lumcnet.prod.intern/lumc-home$/ttak/MyDocs/R projects/FlowMonitor/BD alternative Data/BD CST files"
+```
+
+```{r load list of .cst files}
+#File.List.BD_All<-list.files(path = file_path_BD, pattern = ".cst", recursive=TRUE, full.names = TRUE)
+```
+
+```{r create a table listing which file belongs to which instrument&configuration, echo=FALSE}
+
+Instrumentname<-as.data.frame(File.List.BD_All)
+colnames(Instrumentname)<-"Instrument"
+Instrumentname$Instrument<-sub(".*Data_", "", Instrumentname$Instrument)
+Instrumentname2<-Instrumentname %>% separate(Instrument, c("Instrument", "Configuration"), "/")
+Instrumentname2$id<-c(1:nrow(Instrumentname2))
+```
+
+```{r Load all .cst files}
+Tables.list<- lapply(File.List.BD_All, fread, header= TRUE, fill = TRUE, na.strings= "", sep=",")
+```
+
+```{r collapse list and convert data to a long table}
+
+Tables.list.long<-melt(Tables.list,id=c("Date_Time"))
+
+```
+
+```{r Add instrument name and config to long table}
+Tables.list.long2<-merge.data.frame(Tables.list.long,Instrumentname2,by.x="L1",by.y="id")
+```
+
+```{r Rename and clean up parameter names}
+
+Tables.list.long3<-Tables.list.long2[!grepl("Cytometer|Bead_Product|Catalog_Number|Regulatory",Tables.list.long2$variable),]
+Tables.list.long3$Laser_Detector<-sub("DET_[0-9]{1,2}_", "", Tables.list.long3$variable)
+Tables.list.long3$Laser_Detector<-sub("LASER_", "", Tables.list.long3$Laser_Detector)
+Tables.list.long3$Laser_Detector<-sub("_.*", "", Tables.list.long3$Laser_Detector)
+Tables.list.long3$Laser_Detector<-sub(" ", "", Tables.list.long3$Laser_Detector)
+Tables.list.long3$variable<-sub(".*_", "", Tables.list.long3$variable)
+```
+
+```{r Add column for exporting every image}
+Tables.list.long3$FWparams<-paste(Tables.list.long3$Instrument,Tables.list.long3$variable,Tables.list.long3$Laser_Detector,sep="_")
+```
+
+```{r Ensure values are numberic and dates are stored correctly}
+Tables.list.long3$value <- as.numeric(Tables.list.long3$value)
+Tables.list.long3$Date_Time<-parse_date_time(Tables.list.long3$Date_Time, orders=c("%m/%d/%Y %I:%M:%S %p", "%d-%m-%y %H:%M:%S","%Y-%m-%d %H:%M:%S"))
+Tables.list.long3$Date_Time<-as.Date(Tables.list.long3$Date_Time)
+```
+
+```{r reorder datatable}
+Tables.list.long3<-Tables.list.long3 %>% arrange(Instrument,variable,Laser_Detector,Date_Time)
+
+```
+
+
+```{r Correcting error with dates before 1950}
+Tables.list.long3<-Tables.list.long3 %>% filter(Date_Time > as.Date("1950-01-01"))
+
+```
+
+
+```{r rename the datatable for saving}
+TableFinal_BD<-Tables.list.long3
+
+```
+
+```{r create a wide table for exporting .xlsx}
+Wide_Table_BD<-dcast(TableFinal_BD,Date_Time + Instrument ~ variable + Laser_Detector, 
+                     value.var = "value",
+                     fun.aggregate = mean, na.rm=TRUE)
+```
+
+```{r Save the data}
+save(TableFinal_BD, file = "BD.RData")
+save(Wide_Table_BD, file = "Wide.Table.BD.RData")
+```
+

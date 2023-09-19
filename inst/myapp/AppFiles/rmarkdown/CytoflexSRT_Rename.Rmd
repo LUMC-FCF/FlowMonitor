@@ -1,0 +1,33 @@
+---
+title: "Name_Convert_SRT"
+author: "Tamar Tak"
+output: html_document
+date: "2023-06-20"
+---
+
+#Renaming itmes in the Laser_Detector column with Old en New names in the rename file
+```{r Renaming items in the Laser_Detector column, warning=TRUE}
+for(i in 1:length(Excel_File_Rename$OldName)){
+TableFinal_cytoflex$Laser_Detector[TableFinal_cytoflex$Laser_Detector == Excel_File_Rename$OldName[i]] <- Excel_File_Rename$NewName[i]}
+```
+
+#Extra column for exporting of images
+```{r (Post) Extra column for exporting of images, warning=TRUE}
+TableFinal_cytoflex$FWparams<-paste(TableFinal_cytoflex$Instrument,TableFinal_cytoflex$variable,TableFinal_cytoflex$Laser_Detector,sep="_")
+head(TableFinal_cytoflex)
+```
+
+#Extra dataframe in wide table format to generate Excel file for application
+```{r (Post) Extra dataframe in wide table format to generate Excel file for application, warning=TRUE}
+Wide_Table_cytoflex<-dcast(TableFinal_cytoflex,Date_Time + Instrument ~ variable + Laser_Detector, 
+                  value.var = "value",
+                  fun.aggregate = mean, na.rm=TRUE)
+```
+
+
+#Save new dataframe
+```{r}
+save(TableFinal_cytoflex, file = "CytoflexSRT_Rename.RData")
+save(Wide_Table_cytoflex, file = "Wide.Table.CytoflexSRT_Rename.RData")
+```
+

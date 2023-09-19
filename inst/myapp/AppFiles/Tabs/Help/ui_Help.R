@@ -17,7 +17,7 @@ Tab_Help<-
        title = span(icon("circle-info"), strong("How does it work?")),
        background = "aqua",
        width = 6,
-        h4("The application imports quality control files (.log or .csv files). The collection of files will be put through Pre-Processing. 
+        h4("The application imports quality control files (.cst or .csv files). The collection of files will be put through Pre-Processing. 
              Pre-Processing converts the files into one data table, that is then used to visualize the data. The data table is also used
              as input for downloading images based on all parameters present in the data, and it is also used to Export an Excel file.")),
      box(

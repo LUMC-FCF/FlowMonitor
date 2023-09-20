@@ -32,11 +32,12 @@ FlowMonitorApp::StartApp()
 
 
 # Notes: 
-* Please note that the data pre-processing may take > 10 minutes. The preprocessed data is saved, however, so as long as you do not want to include new data, you do not need to run preprocessing again. Storing data on you PC instead of on a network drive may speed up the processing.
+* Please note that the data pre-processing may take > 10 minutes. The preprocessed data is saved, however, so as long as you do not want to include new data, you do not need to run preprocessing again. Storing data on you PC instead of on a network drive will speed up the processing.
 * FlowMonitor does removes some corrupt files (i.e. made with the wrong data/time settings), but there may be arrors we have not encountered before.
 * QC files are located in the following folders: 
 * Cytek Aurora: "C:\CytekbioExport\Setup" (one .csv per QC)
-* BD FACSDiva: "D:\BD\FACSDiva\CST\LogFiles" (one .log file per month)
+* BD FACSDiva: in the hidden folder "C:\ProgramData\BD\FACSDiva\CST\LJ" (one file per configuration)
+* The CytoFLEX SRT does not automatically generate QC files, you can export them in the QC module by right clicking an old QC file and selecting Data Manager. Here, you can download all QC files in a certain date range. Make sure to deselect the configuration or bead lot if you want to export all files. 
 * We use RoboCopy to automatically transfer QC files to a network location, please contact us if you want to an SOP on how we use RoboCopy. 
 
 

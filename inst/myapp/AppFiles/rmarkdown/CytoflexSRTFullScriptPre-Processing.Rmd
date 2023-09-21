@@ -18,7 +18,7 @@ library(FlowMonitorApp)
 
 
 ```{r Converting list into dataframe using as.data.frame(), warning=TRUE}
-#DF.filedirectory<- as.data.frame(File.List.CytoflexSRT_All)
+DF.filedirectory<- as.data.frame(File.List.CytoflexSRT_All)
 ```
 
 

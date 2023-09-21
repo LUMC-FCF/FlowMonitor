@@ -14,7 +14,6 @@ TableFinal_CytoflexSRT$Laser_Detector[TableFinal_CytoflexSRT$Laser_Detector == E
 #Extra column for exporting of images
 ```{r (Post) Extra column for exporting of images, warning=TRUE}
 TableFinal_CytoflexSRT$FWparams<-paste(TableFinal_CytoflexSRT$Instrument,TableFinal_CytoflexSRT$variable,TableFinal_CytoflexSRT$Laser_Detector,sep="_")
-head(TableFinal_cytoflex)
 ```
 
 #Extra dataframe in wide table format to generate Excel file for application

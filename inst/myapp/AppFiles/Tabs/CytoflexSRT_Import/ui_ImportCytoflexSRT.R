@@ -31,7 +31,7 @@ Tab_Import_CytoflexSRT <-
             uiOutput("Rename_Excel_CytoflexSRT"),
               fileInput("File_Select_Excelname", 
               label = " ", width = '40%'),
-           actionButton("Name_Convert",
+           actionButton("Name_Convert_CytoflexSRT",
                         label = "Convert Names")), 
       )
 )

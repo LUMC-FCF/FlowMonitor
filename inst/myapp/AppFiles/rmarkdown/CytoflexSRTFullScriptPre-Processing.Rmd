@@ -9,7 +9,7 @@ output: html_document
 ```{r temporary chunk for testing, warnings=FALSE}
 library(FlowMonitorApp)
 
-File.List.CytoflexSRT_All<-list.files(path = "C:/R/Beckman Coulter", pattern = ".csv", recursive=TRUE, full.names = TRUE)
+#File.List.CytoflexSRT_All<-list.files(path = "C:/R/Beckman Coulter", pattern = ".csv", recursive=TRUE, full.names = TRUE)
 
 
 
@@ -18,7 +18,7 @@ File.List.CytoflexSRT_All<-list.files(path = "C:/R/Beckman Coulter", pattern = "
 
 
 ```{r Converting list into dataframe using as.data.frame(), warning=TRUE}
-DF.filedirectory<- as.data.frame(File.List.CytoflexSRT_All)
+#DF.filedirectory<- as.data.frame(File.List.CytoflexSRT_All)
 ```
 
 

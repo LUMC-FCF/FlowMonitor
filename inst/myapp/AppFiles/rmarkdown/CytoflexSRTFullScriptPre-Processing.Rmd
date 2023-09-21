@@ -1,0 +1,314 @@
+---
+title: Pre-processing Cytoflex SRT
+author: "Tamar Tak"
+date: "2023-07-25"
+output: html_document
+---
+
+
+```{r temporary chunk for testing, warnings=FALSE}
+library(FlowMonitorApp)
+
+#File.List.CytoflexSRT_All<-list.files(path = "C:/R/Beckman Coulter", pattern = ".csv", recursive=TRUE, full.names = TRUE)
+
+
+
+```
+
+
+
+```{r Converting list into dataframe using as.data.frame(), warning=TRUE}
+DF.filedirectory<- as.data.frame(File.List.CytoflexSRT_All)
+```
+
+
+#Adding an .id column 
+```{r Adding .id column using setDT(), warning=TRUE}
+DF.filedirectoryidDate <- setDT(DF.filedirectory, keep.rownames = ".id")
+```
+
+
+#Changing second column name of dataframe to date
+```{r Changing column name of dataframe to date, warning=TRUE}
+colnames(DF.filedirectoryidDate) <- c(".id","Date")
+```
+
+
+```{r Remove part of filename before _Data}
+DF.filedirectoryidDate$Date <- sub(".*Data_", "", DF.filedirectoryidDate$Date)
+```
+
+
+#Splitting the Instrument and Date columns 
+```{r #Splitting the instrument and Date columns using sepreate and "/" as an identifier, warning=TRUE}
+DF.filedirectoryidInstrument <- DF.filedirectoryidDate %>% separate(Date, c("Instrument", "Date"), "/")
+```
+
+
+#Deleting text referring to the directory in the Date column, detecting the .*?_20 in the directory name, and using sub() to replacing it with ''
+```{r (Deleting text referring to the directory of the Date column, so only the Date and Time remains, warning=TRUE}
+DF.filedirectoryidInstrument$Date <- sub(".*?_20", "20", DF.filedirectoryidInstrument$Date)
+```
+
+# Remove ".csv", replacing it with '' using gsub()
+```{r Remove ".csv", replacing it with "" using gsub(), warning=TRUE}
+DF.filedirectoryidInstrument$Date <- gsub('.csv', '', DF.filedirectoryidInstrument$Date)
+```
+
+#Converting the character() type dates into date() type data, using ymd()
+```{r Converting data in Date column into date type data, warning=TRUE}
+DF.filedirectoryidInstrument$Date <- parse_date_time(DF.filedirectoryidInstrument$Date,"%Y%m%d%H%M")
+```
+
+
+
+
+#-Part one of dataset-
+#Importing items from list as tables with fread, specifying "," as a seperator and skipping the top of the file until "Gain".
+```{r Importing files from list as tables with fread, warning=TRUE}
+Tables.list<- lapply(File.List.CytoflexSRT_All, fread, header= TRUE, skip = "Gain", fill = TRUE, na.strings= "")
+```
+
+
+
+#Deleting section starting with laser settings from tables using filter() and cumsum(), based on present NA values. 
+```{r (Part 1) Deleting sections after the relevant table by looking for an empty column, warning=TRUE}
+Tables.list.del <- lapply(Tables.list, filter, cumsum(Gain == "NA") == 0)
+```
+
+
+#Binding all tables of list.nodetec together to one dataframe using rblindlist, setting idcol as true for adding date and time.
+```{r (Part 1) Binding all tables together to one dataframe, warning=TRUE}
+DF.tablescytoflex <- rbindlist(Tables.list.del, idcol=TRUE)
+```
+
+
+#Merging the .id dataframe with the generated dataframe based on the .id column, using merge.data.frame()
+```{r (Part 1) Merging dataframes based on .id column, warning=TRUE}
+DF.cytoflex.id <- merge.data.frame(DF.tablescytoflex, DF.filedirectoryidInstrument, by.x= ".id")
+```
+
+
+#Adding a Detector column, used for later merging of the dataframe of the first part of the file with the second part of the file 
+```{r (Part 1) Adding extra Laser column, warning=TRUE}
+names(DF.cytoflex.id)[names(DF.cytoflex.id) == 'Parameter'] <- 'Laser_Detector'
+```
+
+
+#Converting the finished wide table for the first part of the total dataset, into a long table format using melt().
+```{r (Part 1) Converting part one of table into long table format., warning=TRUE}
+Table.done.cytoflex <- reshape2::melt(DF.cytoflex.id, id.vars = c("Laser_Detector" ,"Date", ".id", "Instrument","Result"))
+```
+
+
+
+
+
+#-Part two of dataset-
+#Importing the original list again as tables, skipping until "Laser delay" 
+```{r (Part 2) Importing items from list as tables using fread for part 2 of the dataset, warning=TRUE}
+Tablespt2.list <- lapply(File.List.CytoflexSRT_All, fread, header= TRUE, 
+                         skip = "Delay", fill = TRUE, sep = ",")
+```
+
+
+#Deleting lower part of the remaining table, using filter(), filtering on "FSC Area Scaling Factor"
+```{r (Part 2) Deleting the lower part of the remaining table, warning=TRUE}
+Tablespt2.del.list <- lapply(Tablespt2.list, filter, cumsum(Laser == "Signal Value") == 0)
+```
+ 
+ 
+#Binding datasets together using rbindlist()
+```{r (Part 2) Binding datasets together, warning=TRUE}
+DF.cytoflex2.bind <- rbindlist(Tablespt2.del.list, idcol=TRUE, fill = TRUE)
+```
+
+
+```{r (Part 2) removing columns with only NA, warning=TRUE}
+ DF.cytoflex2.bind2<-select(DF.cytoflex2.bind, -c(V8, V9,V10,V11,"Target Power(mW)") )
+```
+
+
+#Merging the .id dataframe with the generated dataframe based on the .id column, using merge.data.frame()
+```{r (Part 2) Merging dtaframes based on .id column}
+DF.id.cytoflex2 <- merge.data.frame(DF.cytoflex2.bind2, DF.filedirectoryidInstrument, by.x= ".id")
+```
+
+
+#Adding a Detector column, used for later merging of the dataframe of the first part of the file with the second part of the file 
+```{r (Part 2) Adding extra Detector column, warning=TRUE}
+names(DF.id.cytoflex2)[names(DF.id.cytoflex2) == 'Laser'] <- 'Laser_Detector'
+
+```
+
+
+#Converting the dataframe into a long table format using melt()
+```{r (Part 2) Converting part two of table into long table format., warning=TRUE}
+Table.done2.cytoflex <- reshape2::melt(DF.id.cytoflex2, id.vars = c("Laser_Detector" ,"Date", ".id", "Instrument","Result"))
+```
+
+
+#Using rbind() to bind the dataframes of part 1 and 2
+```{r (Part 2) Binding the part 1 and part 2 tables together, warning=TRUE}
+Table.done1and2.cytoflex <- rbind(Table.done2.cytoflex, Table.done.cytoflex)
+```
+
+
+
+
+#-Part three of dataset-
+#Importing the original list again as tables, skipping until "Item" 
+```{r (Part 3) Importing items from list as tables using fread for part 3 of the dataset, warning=TRUE}
+Tablespt3.list <- lapply(File.List.CytoflexSRT_All, fread, header= TRUE, 
+                         skip = "Item", fill = TRUE, sep = ",")
+```
+
+
+#Deleting lower part of the remaining table, using filter(), filtering on "FSC Area Scaling Factor"
+```{r (Part 3) Deleting the lower part of the remaining table, warning=TRUE}
+    Tablespt3.del.list <- lapply(Tablespt3.list, filter, cumsum(Value  == "NA" | Item  == "Specifications") == 0)
+```
+ 
+ 
+#Binding datasets together using rbindlist()
+```{r (Part 3) Binding datasets together, warning=TRUE}
+DF.cytoflex3.bind <- rbindlist(Tablespt3.del.list, idcol=TRUE, fill = TRUE)
+```
+
+
+#Merging the .id dataframe with the generated dataframe based on the .id column, using merge.data.frame()
+```{r (Part 3) Merging dtaframes based on .id column}
+DF.id.cytoflex3 <- merge.data.frame(DF.cytoflex3.bind, DF.filedirectoryidInstrument, by.x= ".id")
+```
+
+
+#Renaming columns and adding a Laser_Detector column, used for later merging of the dataframe of the first part of the file with the second part of the file 
+```{r (Part 3) Adding extra Detector column, warning=TRUE}
+names(DF.id.cytoflex3)[names(DF.id.cytoflex3) == 'Item'] <- 'variable'
+names(DF.id.cytoflex3)[names(DF.id.cytoflex3) == 'Value'] <- 'value'
+DF.id.cytoflex3$Laser_Detector <- c("")
+
+```
+
+```{r removing target value column}
+
+DF.id.cytoflex3 <- DF.id.cytoflex3[,!names(DF.id.cytoflex3) %in% "Target"]
+```
+
+
+#Using rbind() to bind the dataframes of part 1+2 and 3
+```{r (Part 3) Binding the part 1 and part 2 tables together, warning=TRUE}
+TableFinal_CytoflexSRT <- rbind(DF.id.cytoflex3, Table.done1and2.cytoflex)
+```
+
+
+
+
+
+
+
+#-Post-processing of dataframe-
+#Substituting all "_" values in the titels of columns the now merged dataframes using gsub()
+```{r (Post) Substituting all "_" in the titles of columns, warning=TRUE}
+TableFinal_CytoflexSRT$variable <- gsub(' ', '_', TableFinal_CytoflexSRT$variable)
+TableFinal_CytoflexSRT$Laser_Detector <- gsub(' ', '_', TableFinal_CytoflexSRT$Laser_Detector)
+
+```
+
+
+#Removing the "%" from the column title %_rCV
+```{r (Post) Removing the "%" from column names, warning=TRUE}
+TableFinal_CytoflexSRT$variable <- gsub('%', 'Perc', TableFinal_CytoflexSRT$variable)
+TableFinal_CytoflexSRT$value <- gsub('####', 'NA', TableFinal_CytoflexSRT$value)
+
+
+
+```
+
+
+#Converting values to numeric data types, using the function as.numeric()
+```{r Converting values to numberic data types, warning=TRUE}
+TableFinal_CytoflexSRT$Date <-as.Date(TableFinal_CytoflexSRT$Date)
+
+TableFinal_CytoflexSRT$value <-as.numeric(TableFinal_CytoflexSRT$value)
+```
+
+#Run after pass and fail,using is.na() all instances of NA are deleted.
+```{r (Post) deleting all instances of NA, warning=TRUE}
+TableFinal_CytoflexSRT[is.na(TableFinal_CytoflexSRT)] <- ""
+TableFinal_CytoflexSRT <- TableFinal_CytoflexSRT %>%
+        filter(variable != "" )
+```
+
+
+
+#Extra run to make sure values are numeric type, using as.numeric()
+```{r (Post) Extra run to make sure values are of numeric type, warning=TRUE}
+TableFinal_CytoflexSRT$value <-as.numeric(TableFinal_CytoflexSRT$value)
+```
+
+```{r reorder table alphabetically}
+    TableFinal_CytoflexSRT<-TableFinal_CytoflexSRT %>% arrange(Instrument,variable,Laser_Detector,Date)
+    
+```
+
+#Creating list that contains correct pass/fail requirements 
+```{r (Post) Loop to fill in Pass anf Fail column, warning=TRUE}
+List.id_columnsp_f <-lapply(unique(TableFinal_CytoflexSRT$.id),
+       function(i) {
+         Loop_Pass_Fail <-TableFinal_CytoflexSRT[TableFinal_CytoflexSRT$.id == i,]
+         Loop_Pass_Fail<-Loop_Pass_Fail$Result
+         if(sum(str_detect(Loop_Pass_Fail, "Fail")) > 0){
+           QC_result <-"Fail"
+         } else {
+           QC_result <-"Pass" 
+         }
+         
+          data.frame(i,QC_result)
+       }
+)
+```
+
+
+#Convert list with pass/fail requirements to dataframe
+```{r (Post) Convert list with pass/fail requirements to dataframe, warning=TRUE}
+DF.id_columnsp_f <- as.data.frame(do.call(rbind, List.id_columnsp_f))
+```
+
+
+#Adding .id column to pass/fail requirement dataframe 
+```{r (Post) renaming columns , warning=TRUE}
+DF.id_columnsp_f2 <-  DF.id_columnsp_f %>% rename("Pass_and_Fail" = "QC_result")
+DF.id_columnsp_f2 <-  DF.id_columnsp_f2 %>% rename(".id" = "i")
+```
+
+
+
+#Merging pass/fail requirements dataframe with TableFinal_Aurora
+```{r (Post) Merging pass/fail requirements dataframe with TableFinal_Aurora, warning=TRUE}
+TableFinal_CytoflexSRT <- merge.data.frame(TableFinal_CytoflexSRT ,DF.id_columnsp_f2, by.x= ".id", by.y = ".id")
+```
+
+
+
+#Extra dataframe in wide table format to generate Excel file for application 
+```{r (Post) Extra dataframe in wide table format to generate Excel file for application , warning=TRUE}
+Wide_Table_cytoflexSRT<-reshape2::dcast(TableFinal_CytoflexSRT,Date + Instrument + Pass_and_Fail ~ variable+ Laser_Detector, 
+                  value.var = "value",
+                  fun.aggregate = mean, na.rm=TRUE)
+```
+
+#Extra column for exporting of images
+```{r (Post) Extra column for exporting of images, warning=TRUE}
+TableFinal_CytoflexSRT$FWparams<-paste(TableFinal_CytoflexSRT$Instrument,TableFinal_CytoflexSRT$variable,TableFinal_CytoflexSRT$Laser,TableFinal_CytoflexSRT$Laser_Detector,sep="_")
+```
+
+
+#- Save TableFinal_CytoflexSRT and TableFinal_CytoflexSRT for RShiny application
+#Save data
+```{r Save the data, warning=TRUE}
+save(TableFinal_CytoflexSRT, file = "CytoflexSRT.RData")
+save(Wide_Table_cytoflexSRT, file = "Wide_Table_cytoflexSRT.RData")
+```
+
+

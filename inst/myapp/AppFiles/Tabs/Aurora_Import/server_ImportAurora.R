@@ -1,12 +1,13 @@
 #Getting dirname() to access computer system for direcory selection
-  volumes = getVolumes()()
-  shinyDirChoose(input, 'Importing_input', roots = volumes)
-  dirname <- reactive({parseDirPath(volumes, input$Importing_input)})
-  observe({
+volumes = getVolumes()()
+shinyDirChoose(input, 'Importing_input', roots = volumes)
+dirname <- reactive({parseDirPath(volumes, input$Importing_input)})
+observe({
   if (!is.null(dirname)) {
     print(dirname())
     output$Importing_input <- renderText(dirname())}
-  })
+})
+
 
 #Importing button for the Aurora import page, when button is pushed importing starts
 observeEvent(input$Importing_Button_Aurora, {

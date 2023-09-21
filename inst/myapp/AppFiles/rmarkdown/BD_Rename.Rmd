@@ -14,11 +14,12 @@ TableFinal_BD$Laser_Detector[TableFinal_BD$Laser_Detector == Excel_File_Rename$O
 #Extra column for exporting of images
 ```{r (Post) Extra column for exporting of images, warning=TRUE}
 TableFinal_BD$FWparams<-paste(TableFinal_BD$Instrument,TableFinal_BD$variable,TableFinal_BD$Laser_Detector,sep="_")
+head(TableFinal_BD)
 ```
 
 #Extra dataframe in wide table format to generate Excel file for application
 ```{r (Post) Extra dataframe in wide table format to generate Excel file for application, warning=TRUE}
-Wide_Table_BD<-dcast(TableFinal_BD,Date + Time + Instrument ~ variable + Laser_Detector, 
+Wide_Table_BD<-dcast(TableFinal_BD,Date_Time + Instrument ~ variable + Laser_Detector, 
                   value.var = "value",
                   fun.aggregate = mean, na.rm=TRUE)
 ```

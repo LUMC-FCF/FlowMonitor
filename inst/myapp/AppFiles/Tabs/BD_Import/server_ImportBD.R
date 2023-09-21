@@ -2,11 +2,11 @@
 observeEvent(input$Importing_Button_BD, {
   showModal(modalDialog(h2("Importing is running..."),))
   results_import <- tryCatch({
-    file_path_BD <- ImportData(FilePattern = "*.log",
+    File.List.BD_All <- ImportData(FilePattern = "*.cst",
                                DirSelect = dirname(),
                                case_ignore = TRUE,
                                Recursive = TRUE)
-    save(file_path_BD, file = "BDList.RData")
+    save(File.List.BD_All, file = "BDList.RData")
     load("BDList.RData", envir = .GlobalEnv)
     showNotification(ui = "Importing was succesfull :)",
                      duration = 5,
@@ -33,7 +33,7 @@ observeEvent(input$Pre_Processing_Button_BD, {
   showModal(modalDialog(h2("Pre-Processing is running..."),))
   results <- tryCatch({
     rmarkdown::render(
-      input = paste0("rmarkdown/BDFullScriptPre-Processing.Rmd"),
+      input = paste0("rmarkdown/BDFullScriptPre-ProcessingV2.Rmd"),
       output_file = "BDFullScriptPre-Processing.html")
     load("rmarkdown/BD.RData", envir = .GlobalEnv)
     load("rmarkdown/Wide.Table.BD.RData", envir = .GlobalEnv)

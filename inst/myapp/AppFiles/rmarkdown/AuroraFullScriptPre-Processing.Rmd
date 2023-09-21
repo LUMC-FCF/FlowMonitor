@@ -4,6 +4,11 @@ author: "Britt Kolen"
 date: "2023-07-18"
 output: html_document
 ---
+
+# Version 1.01
+# Changed QC pass/fail loop and subsequent merging to table.final to correct for mismatching in the original
+
+
 #-Date, time and instrument columns- 
 #Converting list of .csv files into dataframe 
 ```{r Converting list into dataframe using as.data.frame(), warning=TRUE}
@@ -340,13 +345,12 @@ List.id_columnsp_f <-lapply(unique(TableFinal_Aurora$.id),
          Loop_Pass_Fail<-Loop_Pass_Fail$Pass_and_Fail
          if(sum(str_detect(Loop_Pass_Fail, "Fail")) > 0){
            QC_result <-"Fail"
-         } 
-         
-         else {
+         } else {
            QC_result <-"Pass" 
          }
          
-         QC_result
+          data.frame(i,QC_result)
+
        }
 )
 ```
@@ -359,20 +363,16 @@ DF.id_columnsp_f <- as.data.frame(do.call(rbind, List.id_columnsp_f))
 
 
 #Adding .id column to pass/fail requirement dataframe 
-```{r (Post) Adding .id column to pass/fail requirement dataframe , warning=TRUE}
-DF.w_id_columnsp_f <- setDT(DF.id_columnsp_f, keep.rownames = ".id")
+```{r (Post) renaming columns , warning=TRUE}
+DF.id_columnsp_f2 <-  DF.id_columnsp_f %>% rename("Pass_and_Fail" = "QC_result")
+DF.id_columnsp_f2 <-  DF.id_columnsp_f2 %>% rename(".id" = "i")
 ```
 
-
-#Renaming undefined column "Pass_and_Fail"
-```{r (Post) Renaming undefined column "Pass_and_Fail", warning=TRUE}
-DF.w_id_columnsp_f2 <-  DF.w_id_columnsp_f %>% rename(Pass_and_Fail = V1)
-```
 
 
 #Merging pass/fail requirements dataframe with TableFinal_Aurora
 ```{r (Post) Merging pass/fail requirements dataframe with TableFinal_Aurora, warning=TRUE}
-TableFinal_Aurora <- merge.data.frame(TableFinal_Aurora ,DF.w_id_columnsp_f2, by.x= ".id", by.y = ".id")
+TableFinal_Aurora <- merge.data.frame(TableFinal_Aurora ,DF.id_columnsp_f2, by.x= ".id", by.y = ".id")
 ```
 
 

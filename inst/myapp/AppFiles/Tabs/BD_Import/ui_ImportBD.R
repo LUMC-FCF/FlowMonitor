@@ -7,7 +7,7 @@ Tab_Import_BD <-
           h4("Select the location of your QC data with 'Select Directory' on the left. Please ensure data from each instrument are stored in a separate folder containing 'Data_' in its' name (see help for more information)."), 
           h4(strong("Click 'Import data' to import all files into the R environment")),
             actionButton("Importing_Button_BD",
-              label = "Click here to import .log files")),
+              label = "Click here to import .cst files")),
                                
       box(title = span(icon("spinner"), "Step 2: Pre-Processing"),
           background = "aqua",

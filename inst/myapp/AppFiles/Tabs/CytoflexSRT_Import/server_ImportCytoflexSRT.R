@@ -77,7 +77,7 @@ observeEvent(input$File_Select_Excelname, {
 
 #Converting names in dataframe
 # - Function used for pre-processing button on importing tab -
-observeEvent(input$Name_Convert, {
+observeEvent(input$Name_Convert_CytoflexSRT, {
   showModal(modalDialog(h2("Renaming is running..."),))
   ResultsExcekNow <- tryCatch({
     rmarkdown::render(

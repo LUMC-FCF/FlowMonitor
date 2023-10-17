@@ -290,6 +290,10 @@ TableFinal_CytoflexSRT <- merge.data.frame(TableFinal_CytoflexSRT ,DF.id_columns
 ```
 
 
+```{r reorder lasers/detectors in TableFinal_CytoflexSRT alphabetically}
+TableFinal_CytoflexSRT<-TableFinal_CytoflexSRT[order("Instrument","variable","Laser_Detector","Date"),]
+```
+
 
 #Extra dataframe in wide table format to generate Excel file for application 
 ```{r (Post) Extra dataframe in wide table format to generate Excel file for application , warning=TRUE}
@@ -297,6 +301,7 @@ Wide_Table_cytoflexSRT<-reshape2::dcast(TableFinal_CytoflexSRT,Date + Instrument
                   value.var = "value",
                   fun.aggregate = mean, na.rm=TRUE)
 ```
+
 
 #Extra column for exporting of images
 ```{r (Post) Extra column for exporting of images, warning=TRUE}

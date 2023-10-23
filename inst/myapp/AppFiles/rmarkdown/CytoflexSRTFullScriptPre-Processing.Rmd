@@ -5,18 +5,6 @@ date: "2023-07-25"
 output: html_document
 ---
 
-
-```{r temporary chunk for testing, warnings=FALSE}
-#library(FlowMonitorApp)
-
-#File.List.CytoflexSRT_All<-list.files(path = "//vf-flowcytometrie-data/flowcytometrie-data$/fcf/Instrument performance tracking files/Beckman Coulter", pattern = ".csv", recursive=TRUE, full.names = TRUE)
-
-
-
-```
-
-
-
 ```{r Converting list into dataframe using as.data.frame(), warning=TRUE}
 DF.filedirectory<- as.data.frame(File.List.CytoflexSRT_All)
 ```

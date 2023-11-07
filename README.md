@@ -58,12 +58,13 @@ if(!require(rmarkdown)) { install.packages("rmarkdown"); library(rmarkdown) }
 if(!require(plotly)) { install.packages("plotly"); library(plotly) }
 if(!require(scales)) { install.packages("scales"); library(scales) }
 if(!require(scales)) { install.packages("shinydashboard"); library(shinydashboard) }
-if(!require(scales)) { install.packages("writexl"); library(writexl) }
-if(!require(scales)) { install.packages("shinyFiles"); library(shinyFiles) }
-if(!require(scales)) { install.packages("stringr"); library(stringr) }
-if(!require(scales)) { install.packages("hms"); library(hms) }
-if(!require(scales)) { install.packages("openxlsx"); library(openxlsx) }
-if(!require(scales)) { install.packages("gtools"); library(gtools) }
+if(!require(writexl)) { install.packages("writexl"); library(writexl) }
+if(!require(shinyFiles)) { install.packages("shinyFiles"); library(shinyFiles) }
+if(!require(stringr)) { install.packages("stringr"); library(stringr) }
+if(!require(hms)) { install.packages("hms"); library(hms) }
+if(!require(openxlsx)) { install.packages("openxlsx"); library(openxlsx) }
+if(!require(gtools)) { install.packages("gtools"); library(gtools) }
+if(!require(pandoc)) { install.packages("pandoc"); library(pandoc) }
 ```
 
 If packages are missing or not updated, and running the above does not work, you can install/update packages manually in RStudio (in Tools). 

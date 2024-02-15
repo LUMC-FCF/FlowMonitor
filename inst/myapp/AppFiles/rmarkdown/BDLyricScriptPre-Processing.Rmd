@@ -1,0 +1,248 @@
+---
+title: "RMarkdown Lyric preprocessing"
+author: "Tamar Tak"
+date: '2023-10-17'
+output: html_document
+---
+
+```{r temporary chunk for testing, warnings=FALSE}
+#library(FlowMonitorApp)
+#rm(list = ls())
+File.List.BDLyric_All<-list.files(path = "//vf-lumc-home.lumcnet.prod.intern/lumc-home$/ttak/MyDocs/R projects/FlowMonitor/Instrument performance tracking data/Lyric data", pattern = "PQC Report", recursive=TRUE, full.names = TRUE)
+```
+
+#-Extract date and instrument name from each .csv
+#Read first line of whole table and extract only date cell
+```{r Reading filname and date from list as tables with fread, warning=TRUE}
+Tables.list.date<- lapply(File.List.BDLyric_All, fread, header= FALSE, nrows=1, fill = TRUE, na.strings= "")
+Tables.list.date<-map(Tables.list.date, ~ (.x %>% select(V3)))
+DF.Lyric.date <- rbindlist(Tables.list.date, idcol=TRUE)
+colnames(DF.Lyric.date)<-c(".id","Date" )
+DF.Lyric.date$Date <- gsub('Performed: ', '', DF.Lyric.date$Date)
+DF.Lyric.date$Date<-parse_date_time(DF.Lyric.date$Date,orders=c("%m/%d/%Y %I:%M %p","%d-%m-%Y %H:%M"))
+
+```
+
+
+```{r Add instrument name to the date table}
+DF.Lyric.date.instrument<-cbind(DF.Lyric.date,File.List.BDLyric_All)
+colnames(DF.Lyric.date.instrument)<-c(".id","Date","Instrument")
+DF.Lyric.date.instrument$Instrument <- sub(".*Data_", "", DF.Lyric.date.instrument$Instrument)
+DF.Lyric.date.instrument$Instrument <- sub("/.*", "", DF.Lyric.date.instrument$Instrument)
+```
+
+
+
+
+#-Extract pass/fail status from each .csv
+#Read first line of whole table and extract only date cell
+```{r Importing files from list as tables with fread, warning=TRUE}
+Tables.list.p_f<- lapply(File.List.BDLyric_All, fread, header= FALSE, skip = "SUMMARY",nrows=1, fill = TRUE, na.strings= "")
+Tables.list.p_f<-map(Tables.list.p_f, ~ (.x %>% select(V2)))
+DF.Lyric.p_f <- rbindlist(Tables.list.p_f, idcol=TRUE)
+colnames(DF.Lyric.p_f)<-c(".id","Pass_and_Fail" )
+```
+
+########################################
+#-Part one of dataset-
+#Importing items from list as tables with fread, specifying "," as a seperator and skipping the top of the file until the word "Mirror" appears.
+```{r (Part 1) Importing files from the filelist list as tables with fread starting at detector results, warning=TRUE}
+Tables.list.Lyric<- lapply(File.List.BDLyric_All, fread, header= TRUE, skip = "Mirror", fill = TRUE, na.strings= "")
+
+```
+
+```{r correct column names that were not imported correctly due to them being on multiple lines in the .csv}
+colnames.Lyric<-c( "LotInfo",
+                   "Laser_Detector",
+                   "Mirror",
+                   "Filter",
+                   "Position",
+                   "PMTV_LW",
+                   "Delta_PMTV_LW",
+                   "Bright_Bead_Median_LW",
+                   "Bright_Bead_Median_QC",
+                   "perc_rCV",
+                   "Linearity_Min_Channel",
+                   "Linearity_Max_Channel",
+                   "Resolution_Sensitivity",
+                   "perc_Diff",
+                   "Qr",
+                   "Br")
+Tables.list.Lyric<-lapply(Tables.list.Lyric, setNames, colnames.Lyric)
+```
+
+
+#Deleting section starting with laser settings from tables using filter() and cumsum(), based on present NA values. 
+```{r (Part 1) Deleting sections after the relevant table by looking for an empty column, warning=TRUE}
+Tables.list.Lyric.del <- lapply(Tables.list.Lyric, filter, cumsum(LotInfo == "NA") == 0)
+```
+
+
+#Binding all tables of list.nodetec together to one dataframe using rblindlist, setting idcol as true for adding date and time.
+```{r (Part 1) Binding all tables together to one dataframe, warning=TRUE}
+DF.tablesLyric <- rbindlist(Tables.list.Lyric.del, idcol=TRUE)
+
+```
+
+```{r (Part 1) remove LotInfo column as it doesnt contain data, warning=TRUE}
+DF.tablesLyric<-select(DF.tablesLyric, -c(LotInfo,Mirror,Filter,Position))
+
+```
+
+# Merge the detector table with the date and QC tables 
+```{r (Part 1) Merging dataframes based on .id column, warning=TRUE}
+DF.Lyric.id <- merge.data.frame(DF.tablesLyric, DF.Lyric.date.instrument, by= ".id")
+DF.Lyric.id <- merge.data.frame(DF.Lyric.id, DF.Lyric.p_f, by= ".id")
+```
+
+#Converting the finished wide table for the first part of the total dataset, into a long table format using melt().
+```{r (Part 1) Converting part one of table into long table format., warning=TRUE}
+Table.done.lyric <- reshape2::melt(DF.Lyric.id, id.vars = c("Laser_Detector" ,"Date", ".id", "Instrument","Pass_and_Fail"))
+```
+
+
+###############################
+#-Part two of dataset-
+#Importing the original list again as tables, skipping until "Trigger" 
+```{r (Part 2) Importing items from list as tables using fread for part 2 of the dataset, warning=TRUE}
+Tables.list.Lyric.laser<- lapply(File.List.BDLyric_All, fread, header= TRUE, skip = "Area Scaling Factor", fill = TRUE, na.strings= "")
+```
+
+
+```{r (Part 2) correct column names that were not imported correctly due to them being on multiple lines in the .csv}
+colnames.Lyric.laser<-c( "Laser_Detector",
+                         "Position",
+                         "Delay_(FSC)",
+                         "Delay_(Fluorescence)",
+                         "Area_Scaling_Factor",
+                         "Power_(mW)",
+                         "Power_Spec",
+                         "Current_(mA)",
+                         "Current_Spec"   
+                         )
+Tables.list.Lyric.laser<-lapply(Tables.list.Lyric.laser, setNames, colnames.Lyric.laser)
+```
+
+
+#Deleting lower part of the remaining table, using filter(), filtering on "FSC Area Scaling Factor"
+```{r (Part 2) Deleting the lower part of the remaining table, warning=TRUE}
+Tables.list.Lyric.laser.del <- lapply(Tables.list.Lyric.laser, filter, cumsum(Laser_Detector == "INFO") == 0)
+```
+ 
+ 
+#convert list of dataframes into a single dataframe using rbindlist()
+```{r (Part 2) Binding datasets together, warning=TRUE}
+DF.Lyric2.bind <- rbindlist(Tables.list.Lyric.laser.del, idcol=TRUE, fill = TRUE)
+```
+ 
+ 
+#Merging the .id dataframe with the generated dataframe based on the .id column, using merge.data.frame()
+```{r (Part 2) Merging dtaframes based on .id column}
+DF.id.Lyric2 <- merge.data.frame(DF.Lyric2.bind, DF.Lyric.date.instrument, by= ".id")
+DF.id.Lyric2 <- merge.data.frame(DF.id.Lyric2, DF.Lyric.p_f, by= ".id")
+```
+
+
+#Converting the dataframe into a long table format using melt()
+```{r (Part 2) Converting part two of table into long table format., warning=TRUE}
+Table.done2.lyric <- reshape2::melt(DF.id.Lyric2, id.vars = c("Laser_Detector" ,"Date", ".id", "Instrument","Pass_and_Fail"))
+```
+
+
+#Using rbind() to bind the dataframes of part 1 and 2
+```{r (Part 2) Binding the part 1 and part 2 tables together, warning=TRUE}
+Table.done1and2.lyric <- rbind(Table.done.lyric, Table.done2.lyric)
+```
+
+
+
+
+
+
+###########
+#-Part three of dataset-
+#Importing the original list again as tables, skipping until "Item" 
+```{r (Part 3) Importing items from list as tables using fread for part 3 of the dataset, warning=TRUE}
+Tablespt3.list <- lapply(File.List.BDLyric_All, fread, header= FALSE, 
+                         skip = "Lot ID:", fill = TRUE, nrows=1)
+```
+
+#Binding datasets together using rbindlist()
+```{r (Part 3) Binding datasets together, warning=TRUE}
+DF.lyric3.bind <- rbindlist(Tablespt3.list, idcol=TRUE, fill = TRUE)
+```
+
+```{r remove unnecessary columns, rename columns and add an empty Laser_Detector column}
+DF.lyric3.bind<-select(DF.lyric3.bind, -c(V1, V3))
+colnames(DF.lyric3.bind)<-c(".id", "BeadLot","FSC_Area_Scaling_Factor")
+DF.lyric3.bind$Laser_Detector<-""
+```
+
+
+#Merging the .id dataframe with the generated dataframe based on the .id column, using merge.data.frame()
+```{r (Part 3) Merging dtaframes based on .id column}
+DF.id.Lyric3 <- merge.data.frame(DF.lyric3.bind, DF.Lyric.date.instrument, by= ".id")
+DF.id.Lyric3 <- merge.data.frame(DF.id.Lyric3, DF.Lyric.p_f, by= ".id")
+```
+
+#Converting the dataframe into a long table format using melt()
+```{r (Part 3) Converting part three of table into long table format., warning=TRUE}
+Table.done3.lyric <- reshape2::melt(DF.id.Lyric3, id.vars = c("Laser_Detector" ,"Date", ".id", "Instrument","Pass_and_Fail"))
+```
+
+
+
+#Using rbind() to bind the dataframes of part 1+2 and 3
+```{r (Part 3) Binding the part 1 and part 2 tables together, warning=TRUE}
+TableFinal_BDLyric <- rbind(Table.done1and2.lyric,Table.done3.lyric)
+```
+
+
+
+levels(as.factor(TableFinal_BDLyric$Laser_Detector))
+
+
+
+#-Post-processing of dataframe-
+
+#Converting values to numeric data types, using the function as.numeric()
+```{r (Post) Converting values to numberic data types, warning=TRUE}
+TableFinal_BDLyric$Date <-as.Date(TableFinal_BDLyric$Date)
+TableFinal_BDLyric$value <-as.numeric(TableFinal_BDLyric$value)
+```
+
+#Remove NAs from value column.
+```{r (Post) deleting all instances of NA, warning=TRUE}
+
+TableFinal_BDLyric <- TableFinal_BDLyric %>%
+         drop_na(value)
+```
+
+
+
+```{r (Post) reorder table alphabetically}
+    TableFinal_BDLyric<-TableFinal_BDLyric %>% arrange(Instrument,variable,Laser_Detector,Date)
+```
+
+##########################
+#Extra dataframe in wide table format to generate Excel file for application 
+```{r (Post) Extra dataframe in wide table format to generate Excel file for application , warning=TRUE}
+Wide_Table_Lyric<-reshape2::dcast(TableFinal_BDLyric,Date + Instrument + Pass_and_Fail ~ variable + Laser_Detector, 
+                  value.var = "value",
+                  fun.aggregate = mean, na.rm=TRUE)
+```
+
+#Extra column for exporting of images
+```{r (Post) Extra column for exporting of images, warning=TRUE}
+TableFinal_BDLyric$FWparams<-paste(TableFinal_BDLyric$Instrument,TableFinal_BDLyric$variable,TableFinal_BDLyric$Laser_Detector,sep="_")
+```
+
+
+#- Save TableFinal_BDLyric and TableFinal_BDLyric for RShiny application
+#Save data
+```{r Save the data, warning=TRUE}
+save(TableFinal_BDLyric, file = "TableFinal_BDLyric.RData")
+save(Wide_Table_Lyric, file = "Wide_Table_BDLyric.RData")
+```
+
+

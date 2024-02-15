@@ -5,18 +5,6 @@ date: "2023-07-25"
 output: html_document
 ---
 
-
-```{r temporary chunk for testing, warnings=FALSE}
-library(FlowMonitorApp)
-
-#File.List.CytoflexSRT_All<-list.files(path = "C:/R/Beckman Coulter", pattern = ".csv", recursive=TRUE, full.names = TRUE)
-
-
-
-```
-
-
-
 ```{r Converting list into dataframe using as.data.frame(), warning=TRUE}
 DF.filedirectory<- as.data.frame(File.List.CytoflexSRT_All)
 ```
@@ -283,12 +271,15 @@ DF.id_columnsp_f2 <-  DF.id_columnsp_f2 %>% rename(".id" = "i")
 ```
 
 
-
 #Merging pass/fail requirements dataframe with TableFinal_Aurora
 ```{r (Post) Merging pass/fail requirements dataframe with TableFinal_Aurora, warning=TRUE}
 TableFinal_CytoflexSRT <- merge.data.frame(TableFinal_CytoflexSRT ,DF.id_columnsp_f2, by.x= ".id", by.y = ".id")
 ```
 
+
+```{r reorder lasers/detectors in TableFinal_CytoflexSRT alphabetically}
+TableFinal_CytoflexSRT <- TableFinal_CytoflexSRT %>% arrange(Instrument, Laser_Detector,Date)
+```
 
 
 #Extra dataframe in wide table format to generate Excel file for application 

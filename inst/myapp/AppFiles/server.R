@@ -10,4 +10,7 @@ server <- function(input, output, session) {
   source("Tabs/CytoflexSRT_Import/server_ImportCytoflexSRT.R", local = TRUE)
   source("Tabs/CytoflexSRT_Export/server_ExportCytoflexSRT.R", local = TRUE)
   source("Tabs/CytoflexSRT_Plots/server_PlotsCytoflexSRT.R", local = TRUE)
+  source("Tabs/BDLyric_Import/server_ImportBDLyric.R", local = TRUE)
+  source("Tabs/BDLyric_Plots/server_PlotsBDLyric.R", local = TRUE)
+  source("Tabs/BDLyric_Export/server_ExportBDLyric.R", local = TRUE)
 }

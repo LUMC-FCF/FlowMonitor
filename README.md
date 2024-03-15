@@ -15,7 +15,7 @@ In order for FlowMonitor to recognize your QC files, there is a few requirements
 2. If you want to plot more than one instrument at a time, put folders with data from the same vendor in one folder. This folder may not contain any other folders. 
 
 
-## How Install application 
+## Installation 
 You need to perform the installation only once, if the installation fails due because some dependencies fail to install, please see below. 
 
 Step 1: Install the package devtools and open the package library (if devtools is not already installed) by running the following code in your console:
@@ -29,7 +29,7 @@ Step 2: Install FlowMonitor
 devtools::install_github("LUMC-FCF/FlowMonitorApp", dependencies = TRUE) 
 ```
 
-## Run the application
+## Running the application
 Step 3: Start FlowMonitor 
 ```
 library(FlowMonitorApp)
@@ -76,7 +76,7 @@ if(!require(pandoc)) { install.packages("pandoc"); library(pandoc) }
 If packages are missing or not updated, and running the above does not work, you can install/update packages manually in RStudio (in Tools). 
 If you cannot update a package because it is in use, as a last resort you can quit R and remove the package from the library on your C-drive
 
-# Set up automated transfer of QC files to a netword drive
+# Set up automated transfer of QC files to a network drive
 To be able to access QC data from all your instruments from a central location, you need to copy QC files to a network drive. We've set up a system that will automatically transfer QC files to a network drive each time a user logs in to the instruments PC. 
 Please note that you will need Administrator rights to set this up, you may need to adapt fie locations and that some instruments (e.g. the CytoFLEX SRT) require manual exporting of QC data.
 

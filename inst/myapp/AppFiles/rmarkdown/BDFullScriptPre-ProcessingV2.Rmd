@@ -57,8 +57,7 @@ Tables.list.long3$Date_Time<-as.Date(Tables.list.long3$Date_Time)
 ```
 
 ```{r reorder datatable}
-Tables.list.long3<-Tables.list.long3 %>% arrange(Instrument,variable,Laser_Detector,Date_Time)
-
+Tables.list.long3<-arrange(Tables.list.long3, Instrument,variable,Laser_Detector,Date_Time)
 ```
 
 
@@ -67,6 +66,11 @@ Tables.list.long3<-Tables.list.long3 %>% filter(Date_Time > as.Date("1950-01-01"
 
 ```
 
+```{r Remove empty columns with VXXX parameter}
+Tables.list.long3<-Tables.list.long3 %>%  filter(!str_detect(variable, "V[0-9]{3}"))
+
+
+```
 
 ```{r rename the datatable for saving}
 TableFinal_BD<-Tables.list.long3

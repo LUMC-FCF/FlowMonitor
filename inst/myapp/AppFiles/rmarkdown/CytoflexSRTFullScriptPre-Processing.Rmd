@@ -235,11 +235,6 @@ TableFinal_CytoflexSRT <- TableFinal_CytoflexSRT %>%
 TableFinal_CytoflexSRT$value <-as.numeric(TableFinal_CytoflexSRT$value)
 ```
 
-```{r reorder table alphabetically}
-    TableFinal_CytoflexSRT<-TableFinal_CytoflexSRT %>% arrange(Instrument,variable,Laser_Detector,Date)
-    
-```
-
 #Creating list that contains correct pass/fail requirements 
 ```{r (Post) Loop to fill in Pass anf Fail column, warning=TRUE}
 List.id_columnsp_f <-lapply(unique(TableFinal_CytoflexSRT$.id),
@@ -278,7 +273,7 @@ TableFinal_CytoflexSRT <- merge.data.frame(TableFinal_CytoflexSRT ,DF.id_columns
 
 
 ```{r reorder lasers/detectors in TableFinal_CytoflexSRT alphabetically}
-TableFinal_CytoflexSRT <- TableFinal_CytoflexSRT %>% arrange(Instrument, Laser_Detector,Date)
+TableFinal_CytoflexSRT <- TableFinal_CytoflexSRT %>% arrange(Instrument, variable, Laser_Detector,Date)
 ```
 
 

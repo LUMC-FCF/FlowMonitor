@@ -26,14 +26,6 @@ Instrumentname2$id<-c(1:nrow(Instrumentname2))
 Tables.list<- lapply(File.List.BD_All, fread, header= TRUE, fill = TRUE, na.strings= "", sep=",")
 ```
 
-```{r remove epmty last column of each dataframe} 
-remove_col <- function(mydata) {
-    mydata <- subset(mydata, select=-c(ncol(mydata)))
-    return(mydata)   # return the modified list/data frame
-}
-Tables.list<-lapply(Tables.list, FUN = remove_col)
-```
-
 ```{r collapse list and convert data to a long table}
 
 Tables.list.long<-melt(Tables.list,id=c("Date_Time"))
@@ -74,6 +66,11 @@ Tables.list.long3<-Tables.list.long3 %>% filter(Date_Time > as.Date("1950-01-01"
 
 ```
 
+```{r Remove empty columns with VXXX parameter}
+Tables.list.long3<-Tables.list.long3 %>%  filter(!str_detect(variable, "V[0-9]{3}"))
+
+
+```
 
 ```{r rename the datatable for saving}
 TableFinal_BD<-Tables.list.long3

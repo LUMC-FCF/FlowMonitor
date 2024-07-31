@@ -26,6 +26,14 @@ Instrumentname2$id<-c(1:nrow(Instrumentname2))
 Tables.list<- lapply(File.List.BD_All, fread, header= TRUE, fill = TRUE, na.strings= "", sep=",")
 ```
 
+```{r remove epmty last column of each dataframe} 
+remove_col <- function(mydata) {
+    mydata <- subset(mydata, select=-c(ncol(mydata)))
+    return(mydata)   # return the modified list/data frame
+}
+Tables.list<-lapply(Tables.list, FUN = remove_col)
+```
+
 ```{r collapse list and convert data to a long table}
 
 Tables.list.long<-melt(Tables.list,id=c("Date_Time"))

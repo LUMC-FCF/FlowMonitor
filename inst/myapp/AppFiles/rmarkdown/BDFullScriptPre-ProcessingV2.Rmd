@@ -65,8 +65,7 @@ Tables.list.long3$Date_Time<-as.Date(Tables.list.long3$Date_Time)
 ```
 
 ```{r reorder datatable}
-Tables.list.long3<-Tables.list.long3 %>% arrange(Instrument,variable,Laser_Detector,Date_Time)
-
+Tables.list.long3<-arrange(Tables.list.long3, Instrument,variable,Laser_Detector,Date_Time)
 ```
 
 

@@ -54,7 +54,7 @@ DF.filedirectoryidInstrument$Date <- parse_date_time(DF.filedirectoryidInstrumen
 #-Part one of dataset-
 #Importing items from list as tables with fread, specifying "," as a seperator and skipping the top of the file until "Gain".
 ```{r Importing files from list as tables with fread, warning=TRUE}
-Tables.list<- lapply(File.List.CytoflexSRT_All, fread, header= TRUE, skip = "Gain", fill = TRUE, na.strings= "")
+Tables.list<- lapply(File.List.CytoflexSRT_All, fread, header= TRUE, sep=",",skip = "Gain", fill = TRUE, na.strings= "")
 ```
 
 

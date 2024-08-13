@@ -5,7 +5,7 @@ output: html_document
 date: "2023-06-20"
 ---
 
-#Renaming itmes in the Laser_Detector column with Old en New names in the rename file
+#Renaming items in the Laser_Detector column with NewName in the rename file
 ```{r Renaming items in the Laser_Detector column, warning=TRUE}
 for(i in 1:length(Excel_File_Rename$OldName)){
 TableFinal_BD$Laser_Detector[TableFinal_BD$Laser_Detector == Excel_File_Rename$OldName[i]] <- Excel_File_Rename$NewName[i]}

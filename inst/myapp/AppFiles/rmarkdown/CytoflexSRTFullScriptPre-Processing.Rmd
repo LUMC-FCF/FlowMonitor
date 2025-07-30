@@ -147,12 +147,21 @@ Table.done1and2.cytoflex <- rbind(Table.done2.cytoflex, Table.done.cytoflex)
 #-Part three of dataset-
 #Importing the original list again as tables, skipping until "Item" 
 ```{r (Part 3) Importing items from list as tables using fread for part 3 of the dataset, warning=TRUE}
-Tablespt3.list <- lapply(File.List.CytoflexSRT_All, fread, header= TRUE, 
-                         skip = "Item", fill = TRUE, sep = ",")
+Tablespt3.list <- lapply(File.List.CytoflexSRT_All, function(file) {
+  tryCatch({
+    fread(file, header = TRUE, skip = "Item", fill = TRUE, sep = ",")
+  }, error = function(e) {
+    data.frame(Item =0,
+               Value=0,
+               Target=0,
+               Result=0
+            )
+  })
+})
 ```
 
 
-#Deleting lower part of the remaining table, using filter(), filtering on "FSC Area Scaling Factor"
+#Deleting lower part of the remaining table, using filter(), filtering on "Specifications"
 ```{r (Part 3) Deleting the lower part of the remaining table, warning=TRUE}
     Tablespt3.del.list <- lapply(Tablespt3.list, filter, cumsum(Value  == "NA" | Item  == "Specifications") == 0)
 ```
@@ -179,8 +188,7 @@ DF.id.cytoflex3$Laser_Detector <- c("")
 ```
 
 ```{r removing target value column and V5-12 columns if present}
-
-DF.id.cytoflex3<-select(DF.id.cytoflex3, -c(V5, V6, V7, V8, V9,V10,V11,"Target") )
+DF.id.cytoflex3 <- DF.id.cytoflex3[, -grep("Target|V5|V6|V7|V8|V9|V10|V11", colnames(DF.id.cytoflex3))]
 ```
 
 

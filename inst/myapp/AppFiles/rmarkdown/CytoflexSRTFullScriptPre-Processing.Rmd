@@ -67,7 +67,7 @@ Tables.list.del <- lapply(Tables.list, filter, cumsum(Gain == "NA") == 0)
 
 #Binding all tables of list.nodetec together to one dataframe using rblindlist, setting idcol as true for adding date and time.
 ```{r (Part 1) Binding all tables together to one dataframe, warning=TRUE}
-DF.tablescytoflex <- rbindlist(Tables.list.del, idcol=TRUE)
+DF.tablescytoflex <- rbindlist(Tables.list.del, idcol=TRUE,fill=TRUE)
 ```
 
 

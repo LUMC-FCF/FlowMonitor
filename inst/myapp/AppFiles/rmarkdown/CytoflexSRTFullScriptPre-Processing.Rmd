@@ -178,9 +178,9 @@ DF.id.cytoflex3$Laser_Detector <- c("")
 
 ```
 
-```{r removing target value column}
+```{r removing target value column and V5-12 columns if present}
 
-DF.id.cytoflex3 <- DF.id.cytoflex3[,!names(DF.id.cytoflex3) %in% "Target"]
+DF.id.cytoflex3<-select(DF.id.cytoflex3, -c(V5, V6, V7, V8, V9,V10,V11,"Target") )
 ```
 
 

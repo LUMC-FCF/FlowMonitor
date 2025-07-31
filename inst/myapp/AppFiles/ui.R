@@ -58,7 +58,7 @@ ui <- dashboardPage(skin = "blue",
                                              tabName = "qc_information_bd",
                                              icon = icon("info"))
                         ),
-                       menuItem("BD (Lyric)",
+                       menuItem("BD (Chorus)",
                                  icon = icon("bars"),
                                  menuSubItem("Importing", 
                                              tabName = "importing_bdLyric", 
@@ -74,7 +74,7 @@ ui <- dashboardPage(skin = "blue",
                                              icon = icon("info"))
                         ),                       
                         
-                        menuItem("Coulter CytoFLEX SRT",
+                        menuItem("BC CytoFLEX",
                                  icon = icon("bars"),
                                  menuSubItem("Importing", 
                                              tabName = "importing_CytoflexSRT", 

@@ -2,7 +2,7 @@ Tab_Import_CytoflexSRT <-
   #Define tab for importing list of QC files
   tabItem(tabName = "importing_CytoflexSRT",
     fluidRow(
-      box(title = span(icon("file-import"), "Step 1: Import data from Beckman Coulter Cytoflex SRT instruments"),
+      box(title = span(icon("file-import"), "Step 1: Import data from Beckman Coulter Cytoflex instruments (including SRT and mosaic)"),
           background = "light-blue",
           width = 6,
             h4("Select the location of your QC data with 'Select Directory' on the left. Please ensure data from each instrument are stored in a separate folder containing 'Data_' in its' name (see help for more information)."),
@@ -23,7 +23,7 @@ Tab_Import_CytoflexSRT <-
            background = "orange",
            width = 8, 
             h4(strong("When comparing multiple configurations with differences in detector names you can use this to rename certain detectors:")),
-            h4("1.	Press 'Download' to download an excel file ('CytoflexSRT.xlsx') containing all detectors in your data. If you have prepared this table before, move to step 4."),
+            h4("1.	Press 'Download' to download an excel file ('Cytoflex.xlsx') containing all detectors in your data. If you have prepared this table before, move to step 4."),
             h4("2.	Fill in the desired name in the column 'NewName'. Remove rows of detector you do not want to rename."),
             h4("3.	Save and close the excel file"),
             h4("4.	Load the excel file with renamed parameters using the file selector."),

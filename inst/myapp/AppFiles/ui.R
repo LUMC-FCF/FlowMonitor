@@ -74,7 +74,7 @@ ui <- dashboardPage(skin = "blue",
                                              icon = icon("info"))
                         ),                       
                         
-                        menuItem("BC CytoFLEX",
+                        menuItem("BCoulter CytoFLEX",
                                  icon = icon("bars"),
                                  menuSubItem("Importing", 
                                              tabName = "importing_CytoflexSRT", 

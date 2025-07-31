@@ -3,12 +3,12 @@ Tab_Info_CytoflexSRT <-
     fluidRow(
     #Define button
      box(
-        title = "Pre-Processing CytoflexSRT instruments",
+        title = "Pre-Processing Cytoflex instruments",
         background = "light-blue",
         width = 12,
         h4(strong("Before visualization of the QC data, the QC data is processed and merged into a single data table.")),
         h4(strong("Pre-Processing involves the following steps:")),
-        h4("1. The Pre-Processing script for the CytoflexSRT instruments accepts .csv files. It will look for any file that has QC in its name and ends with .csv"),
+        h4("1. The Pre-Processing script for the Cytoflex instruments accepts .csv files. It will look for any file that has QC in its name and ends with .csv"),
 	h4("by pressing the import button these files are imported so they are ready for Pre-Processing."),
         h4("2. The files are then split into 3 tables containing the data of interest."),
         h4("3. These Tables are merged together into a single data table."),

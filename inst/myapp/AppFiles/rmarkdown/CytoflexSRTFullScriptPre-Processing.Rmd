@@ -36,6 +36,8 @@ DF.filedirectoryidInstrument <- DF.filedirectoryidDate %>% separate(Date, c("Ins
 #Deleting text referring to the directory in the Date column, detecting the .*?_20 in the directory name, and using sub() to replacing it with ''
 ```{r (Deleting text referring to the directory of the Date column, so only the Date and Time remains, warning=TRUE}
 DF.filedirectoryidInstrument$Date <- sub(".*?_20", "20", DF.filedirectoryidInstrument$Date)
+DF.filedirectoryidInstrument$Date <- sub(".*?_20", "20", DF.filedirectoryidInstrument$Date)
+
 ```
 
 # Remove ".csv", replacing it with '' using gsub()

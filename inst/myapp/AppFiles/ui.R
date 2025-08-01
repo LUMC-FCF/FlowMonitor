@@ -58,7 +58,7 @@ ui <- dashboardPage(skin = "blue",
                                              tabName = "qc_information_bd",
                                              icon = icon("info"))
                         ),
-                       menuItem("BD (Chorus)",
+                       menuItem("BD (FACSSuite)",
                                  icon = icon("bars"),
                                  menuSubItem("Importing", 
                                              tabName = "importing_bdLyric", 

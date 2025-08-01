@@ -36,6 +36,8 @@ DF.filedirectoryidInstrument <- DF.filedirectoryidDate %>% separate(Date, c("Ins
 #Deleting text referring to the directory in the Date column, detecting the .*?_20 in the directory name, and using sub() to replacing it with ''
 ```{r (Deleting text referring to the directory of the Date column, so only the Date and Time remains, warning=TRUE}
 DF.filedirectoryidInstrument$Date <- sub(".*?_20", "20", DF.filedirectoryidInstrument$Date)
+DF.filedirectoryidInstrument$Date <- sub(".*?_20", "20", DF.filedirectoryidInstrument$Date)
+
 ```
 
 # Remove ".csv", replacing it with '' using gsub()
@@ -67,7 +69,7 @@ Tables.list.del <- lapply(Tables.list, filter, cumsum(Gain == "NA") == 0)
 
 #Binding all tables of list.nodetec together to one dataframe using rblindlist, setting idcol as true for adding date and time.
 ```{r (Part 1) Binding all tables together to one dataframe, warning=TRUE}
-DF.tablescytoflex <- rbindlist(Tables.list.del, idcol=TRUE)
+DF.tablescytoflex <- rbindlist(Tables.list.del, idcol=TRUE,fill=TRUE)
 ```
 
 
@@ -147,12 +149,21 @@ Table.done1and2.cytoflex <- rbind(Table.done2.cytoflex, Table.done.cytoflex)
 #-Part three of dataset-
 #Importing the original list again as tables, skipping until "Item" 
 ```{r (Part 3) Importing items from list as tables using fread for part 3 of the dataset, warning=TRUE}
-Tablespt3.list <- lapply(File.List.CytoflexSRT_All, fread, header= TRUE, 
-                         skip = "Item", fill = TRUE, sep = ",")
+Tablespt3.list <- lapply(File.List.CytoflexSRT_All, function(file) {
+  tryCatch({
+    fread(file, header = TRUE, skip = "Item", fill = TRUE, sep = ",")
+  }, error = function(e) {
+    data.frame(Item =0,
+               Value=0,
+               Target=0,
+               Result=0
+            )
+  })
+})
 ```
 
 
-#Deleting lower part of the remaining table, using filter(), filtering on "FSC Area Scaling Factor"
+#Deleting lower part of the remaining table, using filter(), filtering on "Specifications"
 ```{r (Part 3) Deleting the lower part of the remaining table, warning=TRUE}
     Tablespt3.del.list <- lapply(Tablespt3.list, filter, cumsum(Value  == "NA" | Item  == "Specifications") == 0)
 ```
@@ -178,9 +189,8 @@ DF.id.cytoflex3$Laser_Detector <- c("")
 
 ```
 
-```{r removing target value column}
-
-DF.id.cytoflex3 <- DF.id.cytoflex3[,!names(DF.id.cytoflex3) %in% "Target"]
+```{r removing target value column and V5-12 columns if present}
+DF.id.cytoflex3 <- DF.id.cytoflex3[, -grep("Target|V5|V6|V7|V8|V9|V10|V11", colnames(DF.id.cytoflex3))]
 ```
 
 
